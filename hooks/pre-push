@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Example pre-push hook that collects the diff and posts it to the local analysis server
+# Make this executable: chmod +x .git/hooks/pre-push
+
+REMOTE="$1"
+URL="$2"
+
+# Collect the pushed commits' diffs
+DIFF=$(git diff --staged --name-only)
+
+# For a more accurate diff between local and remote branch, you could use:
+# DIFF=$(git diff origin/main...HEAD)
+
+PAYLOAD="$(jq -n --arg branch \"$(git rev-parse --abbrev-ref HEAD)\" --arg commitId \"$(git rev-parse --short HEAD)\" --arg diff \"$(git diff --staged)\" '{branch:$branch, commitId:$commitId, diff:$diff}'))"
+
+# Prefer nginx frontend endpoint, fallback to backend directly
+if curl -s -X POST http://localhost:8080/git-hook -H "Content-Type: application/json" -d "$PAYLOAD" >/dev/null; then
+  echo "Sent diff to frontend (/git-hook)"
+elif curl -s -X POST http://localhost:3001/git-hook -H "Content-Type: application/json" -d "$PAYLOAD" >/dev/null; then
+  echo "Sent diff to backend (/git-hook)"
+else
+  echo "Failed to send diff to codeflow analyzer on both http://localhost:8080 and http://localhost:3001" >&2
+  exit 1
+fi

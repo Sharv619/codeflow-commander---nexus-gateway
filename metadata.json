@@ -1,0 +1,5 @@
+{
+  "name": "CodeFlow Commander - Nexus Gateway",
+  "description": "A web application that visualizes a simulated CI/CD pipeline for 'Project: Nexus Gateway', an enterprise-grade intelligent API gateway.",
+  "requestFramePermissions": []
+}
