@@ -126,6 +126,25 @@ chmod +x .git/hooks/pre-push
 - Secure the analysis API before exposing it externally (add authentication, TLS, request validation).
 - Consider adding a persistent results store (DB) and WebSocket/Server-Sent Events so the frontend can display push results in real time.
 
+### Content-Security-Policy (development)
+
+During development this project adds a permissive Content-Security-Policy header via the Nginx config so Vite, Tailwind's CDN inline config, and local resources (favicon, API endpoints) can load without blocked inline scripts/styles. This is intended for developer convenience only.
+
+If you see browser console errors like "Content-Security-Policy: The page’s settings blocked an inline script/style", that indicates the CSP is too strict for development. We added a development-friendly CSP to `nginx/default.conf` that allows the CDN and inline styles/scripts. To apply that change you may need to restart the frontend (nginx) service in Docker Compose:
+
+```powershell
+# Restart only the frontend (nginx) service so it picks up the new Nginx config
+docker compose restart frontend
+
+# Or rebuild & recreate the frontend service
+docker compose up -d --no-deps --build frontend
+
+# Then verify services
+docker compose ps
+```
+
+Security note: the dev CSP uses `'unsafe-inline'` and broader host allowances. Do NOT use this policy in production. For production, prefer using nonces or script/style hashes (the browser console will include suggested sha256 hashes), remove `'unsafe-inline'`, and allow only the minimal trusted sources.
+
 ## Contributing
 
 If you'd like me to continue, tell me which of the following you'd like next:
