@@ -233,3 +233,50 @@ curl -X POST http://localhost:3001/api/ai -H "Content-Type: application/json" -d
 ```
 
 This keeps the API key on the server and out of the client bundle. You can adapt the proxy payload translation to match the exact Gemini/VertexAI/OpenAI API schema you need.
+
+#### Using the server-side proxy from the frontend
+
+Example frontend code (browser-side) to call the proxy at `/api/ai` and display the result:
+
+```javascript
+async function askAi(input) {
+	const resp = await fetch('/api/ai', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ input })
+	});
+	if (!resp.ok) throw new Error(`AI request failed: ${resp.status}`);
+	return resp.json();
+}
+
+askAi('Summarize: const a = 1;')
+	.then(res => console.log('AI response', res))
+	.catch(err => console.error(err));
+```
+
+Backend mapping note:
+- The backend proxy accepts `{ model?, input }` and forwards a JSON body `{ model, input }` to `GEMINI_API_URL` with the `Authorization: Bearer <GEMINI_API_KEY>` header when configured.
+- If your AI provider expects a different request shape, adapt the proxy (in `server/server.js`) to translate accordingly.
+
+#### Example curl usage (test locally)
+
+```powershell
+curl -X POST http://localhost:3001/api/ai -H "Content-Type: application/json" -d '{"input":"Explain the function of this code: const a = 1"}'
+```
+
+#### Docker / .env usage recap
+
+- Copy `.env.example` to `.env` and set `GEMINI_API_KEY` and `GEMINI_API_URL`.
+- The `docker-compose.yml` is configured to pass `GEMINI_API_KEY` and `GEMINI_API_URL` into the backend service at runtime.
+
+```powershell
+cp .env.example .env
+# Edit .env and set GEMINI_API_KEY and GEMINI_API_URL
+docker compose up --build -d
+```
+
+#### Security / production guidance
+
+- Never expose private API keys in client-side bundles. Use the server-side proxy for production traffic.
+- Consider adding rate-limiting, authentication, and request validation to `/api/ai` before exposing it to users.
+- Log and monitor usage to detect abuse, and store keys in a secret manager for CI/CD and production deploys.
