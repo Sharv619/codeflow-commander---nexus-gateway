@@ -280,3 +280,14 @@ docker compose up --build -d
 - Never expose private API keys in client-side bundles. Use the server-side proxy for production traffic.
 - Consider adding rate-limiting, authentication, and request validation to `/api/ai` before exposing it to users.
 - Log and monitor usage to detect abuse, and store keys in a secret manager for CI/CD and production deploys.
+
+---
+
+Last updated: 2025-10-23
+
+What changed:
+- Clarified API endpoints and `/analyze` normalized response shape.
+- Documented the server-side AI proxy (`/api/ai`) and recommended security practices.
+- Noted the CSP hash tooling and CI injection workflow.
+
+If you'd like a full rewrite or a shorter README with quick commands only, tell me which style you prefer and I'll replace this file entirely.
