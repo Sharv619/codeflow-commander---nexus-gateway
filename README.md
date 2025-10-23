@@ -191,3 +191,24 @@ npm run test:analyze
 ```
 
 The test will POST a small JS snippet to `http://localhost:3001/analyze` and assert the normalized `CodeReviewResult` shape.
+
+## Gemini / AI integration (Docker)
+
+This project can be wired to a Gemini API key for AI-assisted analysis in the frontend build/runtime. The frontend's Vite config reads `process.env.GEMINI_API_KEY` which can be provided at build time and runtime via Docker.
+
+1. Copy the example environment file and fill your key (do NOT commit your real key):
+
+```powershell
+cp .env.example .env
+# edit .env and set GEMINI_API_KEY=your_real_key_here
+```
+
+2. Build and run with Docker Compose. Docker Compose will pass `GEMINI_API_KEY` as a build-arg and as a container env var for the frontend service:
+
+```powershell
+docker compose up --build -d
+```
+
+3. The frontend build will embed `process.env.GEMINI_API_KEY` via Vite's define options so client code can access it as `process.env.GEMINI_API_KEY` (note: embedding secrets in client bundles is not recommended for production; prefer a backend proxy or server-side calls).
+
+Security note: Do not embed private API keys into public frontend bundles in production. Instead, route AI requests through the backend and keep the key server-side.

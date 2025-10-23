@@ -15,9 +15,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.frontend
+      args:
+        - GEMINI_API_KEY
     image: nexus-gateway-frontend:latest
     ports:
       - "8080:80"
     depends_on:
       - backend
     restart: unless-stopped
+    environment:
+      - GEMINI_API_KEY
