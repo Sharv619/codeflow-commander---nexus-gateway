@@ -190,6 +190,54 @@ app.post('/git-hook', (req, res) => {
     res.json({ branch, commitId, result });
 });
 
+
+// Server-side AI proxy endpoint
+// Accepts { model?, input } and forwards to a configured GEMINI_API_URL using the
+// GEMINI_API_KEY from environment. This keeps API keys on the server and out of
+// client bundles. Configure GEMINI_API_URL and GEMINI_API_KEY in your environment.
+app.post('/api/ai', async (req, res) => {
+    const { model = 'default', input } = req.body || {};
+
+    if (!input || typeof input !== 'string') {
+        return res.status(400).json({ error: 'Missing or invalid `input` in request body' });
+    }
+
+    // Simple input size guard
+    if (input.length > 20000) {
+        return res.status(413).json({ error: 'Input too large' });
+    }
+
+    const geminiUrl = process.env.GEMINI_API_URL;
+    if (!geminiUrl) {
+        return res.status(500).json({ error: 'GEMINI_API_URL not configured on server' });
+    }
+
+    try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (process.env.GEMINI_API_KEY) {
+            headers['Authorization'] = `Bearer ${process.env.GEMINI_API_KEY}`;
+        }
+
+        // Forward a simple JSON payload; adapters can translate as needed for the
+        // specific Gemini/VertexAI/OpenAI API shape you target.
+        const payload = { model, input };
+
+        const resp = await fetch(geminiUrl, { method: 'POST', headers, body: JSON.stringify(payload) });
+        const text = await resp.text();
+
+        // Try parse JSON, otherwise return raw text
+        try {
+            const json = JSON.parse(text);
+            return res.status(resp.status).json(json);
+        } catch (e) {
+            return res.status(resp.status).type('text').send(text);
+        }
+    } catch (err) {
+        console.error('AI proxy error:', err);
+        return res.status(502).json({ error: 'Failed to contact AI provider', detail: err.message });
+    }
+});
+
 app.listen(port, () => {
     console.log(`Server listening at http://localhost:${port}`);
 });

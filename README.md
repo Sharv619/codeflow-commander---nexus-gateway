@@ -212,3 +212,24 @@ docker compose up --build -d
 3. The frontend build will embed `process.env.GEMINI_API_KEY` via Vite's define options so client code can access it as `process.env.GEMINI_API_KEY` (note: embedding secrets in client bundles is not recommended for production; prefer a backend proxy or server-side calls).
 
 Security note: Do not embed private API keys into public frontend bundles in production. Instead, route AI requests through the backend and keep the key server-side.
+
+### Server-side AI proxy (recommended)
+
+To keep your Gemini/OpenAI API key secret, use the server-side proxy endpoint added at `/api/ai`. The frontend should POST `{ model?, input }` to `/api/ai`, and the backend will forward the request to the configured `GEMINI_API_URL` using `GEMINI_API_KEY` from the environment.
+
+Setup (example):
+
+1. Set `GEMINI_API_KEY` and `GEMINI_API_URL` in your `.env` file.
+2. Start services with Docker Compose (the variables are passed into the backend service):
+
+```powershell
+docker compose up --build -d
+```
+
+3. Example request (frontend or curl):
+
+```powershell
+curl -X POST http://localhost:3001/api/ai -H "Content-Type: application/json" -d '{"input":"Summarize: const a = 1"}'
+```
+
+This keeps the API key on the server and out of the client bundle. You can adapt the proxy payload translation to match the exact Gemini/VertexAI/OpenAI API schema you need.
