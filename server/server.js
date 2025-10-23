@@ -5,6 +5,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 
 const app = express();
 const port = 3001;
@@ -195,7 +196,9 @@ app.post('/git-hook', (req, res) => {
 // Accepts { model?, input } and forwards to a configured GEMINI_API_URL using the
 // GEMINI_API_KEY from environment. This keeps API keys on the server and out of
 // client bundles. Configure GEMINI_API_URL and GEMINI_API_KEY in your environment.
-app.post('/api/ai', async (req, res) => {
+const aiLimiter = rateLimit({ windowMs: 60 * 1000, max: 30 }); // 30 requests per minute
+
+app.post('/api/ai', aiLimiter, async (req, res) => {
     const { model = 'default', input } = req.body || {};
 
     if (!input || typeof input !== 'string') {

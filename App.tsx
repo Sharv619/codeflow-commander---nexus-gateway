@@ -2,6 +2,7 @@
 import React from 'react';
 import Header from './components/Header';
 import Pipeline from './components/Pipeline';
+import AiConsole from './components/AiConsole';
 
 const App: React.FC = () => {
   return (
@@ -9,6 +10,7 @@ const App: React.FC = () => {
       <Header />
       <main className="container mx-auto p-4 md:p-8">
         <Pipeline />
+  <AiConsole />
       </main>
       <footer className="text-center text-gray-400 py-4 text-sm">
         <p>Nexus Gateway CI/CD Simulator</p>

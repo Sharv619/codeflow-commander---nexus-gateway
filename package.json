@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:analyze": "node --experimental-fetch scripts/test-analyze.js",
+  "test:ai": "node --experimental-fetch scripts/test-ai.js",
     "server": "node server/server.js",
     "compose:up": "docker compose up --build -d",
     "compose:down": "docker compose down",
@@ -17,6 +18,7 @@
   "dependencies": {
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "express-rate-limit": "^6.7.0",
     "express": "^4.19.2",
     "body-parser": "^1.20.2",
     "cors": "^2.8.5"
