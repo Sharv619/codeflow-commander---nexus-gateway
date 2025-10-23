@@ -1,6 +1,9 @@
 import express from 'express';
 import bodyParser from 'body-parser';
-import { exec } from 'child_process';
+import { exec, spawn } from 'child_process';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import cors from 'cors';
 
 const app = express();
@@ -63,18 +66,117 @@ function analyzeCode(diffText) {
     return { overallStatus, summary, files };
 }
 
-app.post('/analyze', (req, res) => {
+// Translate raw ESLint JSON output into the CodeReviewResult shape expected by the frontend
+function normalizeEslintOutput(eslintJson) {
+    // eslintJson is expected to be an array of file results produced by ESLint's JSON formatter
+    if (!Array.isArray(eslintJson)) {
+        return { overallStatus: 'PASS', summary: 'No issues found.', files: [] };
+    }
+
+    const files = [];
+    let totalErrors = 0;
+
+    for (const f of eslintJson) {
+        const errorCount = typeof f.errorCount === 'number' ? f.errorCount : 0;
+        totalErrors += errorCount;
+
+        const issues = (f.messages || []).map(m => ({
+            line: m.line || 0,
+            type: m.ruleId || (m.severity === 2 ? 'error' : m.severity === 1 ? 'warning' : 'unknown'),
+            description: m.message || ''
+        }));
+
+        files.push({
+            fileName: f.filePath || f.fileName || 'unknown',
+            status: errorCount > 0 ? 'FAIL' : 'PASS',
+            issues
+        });
+    }
+
+    const overallStatus = totalErrors > 0 ? 'FAIL' : 'PASS';
+    const summary = totalErrors > 0 ? `${totalErrors} issues found.` : 'No issues found.';
+
+    return { overallStatus, summary, files };
+}
+
+app.post('/analyze', async (req, res) => {
     const { code, diff, commit } = req.body;
     console.log('Analyze request received — commit:', commit ? commit.id : '(no commit)');
 
-    // Prefer diff, then code, then empty
-    const payload = diff || code || '';
+    // Prefer code, then diff, then empty (ESLint expects actual source code)
+    const payload = code || diff || '';
 
-    // Simulate analysis delay
-    setTimeout(() => {
-        const result = analyzeCode(payload);
-        res.json(result);
-    }, 1200);
+    // If no payload, return an empty result
+    if (!payload) {
+        return res.json({ error: 'No code provided' });
+    }
+
+    // Write payload to a temporary file
+    const tmpDir = os.tmpdir();
+    const tmpFile = path.join(tmpDir, `temp_analysis_${Date.now()}.js`);
+
+    try {
+        fs.writeFileSync(tmpFile, payload, 'utf8');
+
+        // Execute ESLint with JSON output. Use npx to ensure local bin is used.
+        // Use --no-ignore to avoid skipping files and ensure eslint runs on the temp file
+        // Use the local eslint binary from node_modules to avoid relying on 'npx' in PATH
+        // Use Node to execute the installed eslint JS entrypoint to avoid platform shell issues
+        const eslintEntry = path.join(process.cwd(), 'node_modules', 'eslint', 'bin', 'eslint.js');
+        const nodeExe = process.execPath;
+
+        let eslint;
+        try {
+            const projectEslintConfig = path.join(process.cwd(), '.eslintrc.json');
+            eslint = spawn(nodeExe, [eslintEntry, '--no-ignore', '--config', projectEslintConfig, tmpFile, '--format', 'json'], { stdio: ['ignore', 'pipe', 'pipe'] });
+        } catch (spawnErr) {
+            try { fs.unlinkSync(tmpFile); } catch (_) {}
+            return res.status(500).json({ error: 'Failed to spawn eslint', detail: spawnErr.message });
+        }
+
+        let out = '';
+        let err = '';
+        eslint.stdout.on('data', (chunk) => { out += chunk.toString(); });
+        eslint.stderr.on('data', (chunk) => { err += chunk.toString(); });
+
+        eslint.on('close', (code) => {
+            // Try parse stdout first, then stderr
+            let parsed = null;
+            try {
+                if (out && out.trim()) parsed = JSON.parse(out);
+            } catch (e) {
+                parsed = null;
+            }
+
+            if (parsed === null) {
+                try {
+                    if (err && err.trim()) parsed = JSON.parse(err);
+                } catch (e) {
+                    parsed = null;
+                }
+            }
+
+            if (parsed === null) {
+                // Cleanup temp file then return a helpful error
+                try { fs.unlinkSync(tmpFile); } catch (_) {}
+                return res.status(500).json({ error: 'Failed to parse ESLint output', stdout: out, stderr: err, exitCode: code });
+            }
+
+            // Cleanup temp file now that ESLint has finished reading it
+            try { fs.unlinkSync(tmpFile); } catch (_) { /* ignore */ }
+
+            // Normalize ESLint output into the frontend's expected CodeReviewResult shape
+            try {
+                const normalized = normalizeEslintOutput(parsed);
+                return res.json(normalized);
+            } catch (normErr) {
+                return res.status(500).json({ error: 'Failed to normalize ESLint output', detail: normErr.message });
+            }
+        });
+    } catch (e) {
+        try { fs.unlinkSync(tmpFile); } catch (_) {}
+        return res.status(500).json({ error: e.message });
+    }
 });
 
 // Endpoint that would be called by a git hook. Accepts a minimal push payload and runs analysis.
