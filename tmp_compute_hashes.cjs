@@ -1,0 +1,16 @@
+const fs = require('fs');
+const s = fs.readFileSync('index.html', 'utf8');
+const re1 = /<script>([\s\S]*?)<\/script>/;
+const re2 = /<script type=\"importmap\">([\s\S]*?)<\/script>/;
+const m1 = s.match(re1);
+const m2 = s.match(re2);
+const crypto = require('crypto');
+if (!m1 || !m2) {
+  console.error('Failed to find scripts');
+  process.exit(1);
+}
+const t1 = m1[1].trim();
+const t2 = m2[1].trim();
+const h = (t) => 'sha256-' + crypto.createHash('sha256').update(t, 'utf8').digest('base64');
+console.log('TAILWIND_HASH=' + h(t1));
+console.log('IMPORTMAP_HASH=' + h(t2));
