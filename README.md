@@ -156,3 +156,38 @@ If you'd like me to continue, tell me which of the following you'd like next:
 **Pick a number or describe a change and I’ll implement it.**
 
 <!-- Removed duplicate/docker-compose/help section (already present above) -->
+
+## CSP hashes and integration test
+
+If you modify the inline scripts in `index.html` (the Tailwind inline config or the importmap), you must recompute the SHA256 hashes used by the production CSP. A small helper script is included:
+
+```powershell
+# Compute updated hashes (requires Node)
+node tmp_compute_hashes.cjs
+# Output will show two sha256 hashes you can paste into nginx/default.conf
+```
+
+To enable the production CSP in `nginx/default.conf`:
+
+1. Replace or remove the development `add_header Content-Security-Policy` line and uncomment the production `add_header` that contains the computed sha256 hashes.
+2. Restart or recreate the frontend (nginx) service:
+
+```powershell
+docker compose up -d --no-deps --build frontend
+```
+
+Integration test for `/analyze`:
+
+1. Start the backend server:
+
+```powershell
+npm run server
+```
+
+2. In another terminal, run the analyzer integration test:
+
+```powershell
+npm run test:analyze
+```
+
+The test will POST a small JS snippet to `http://localhost:3001/analyze` and assert the normalized `CodeReviewResult` shape.
