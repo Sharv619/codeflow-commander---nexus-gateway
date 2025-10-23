@@ -34,6 +34,37 @@ npm run server
 
 The frontend will make analysis requests to **http://localhost:3001** unless you configure proxies (see Docker/dev sections below).
 
+### /analyze response shape
+
+The backend's `/analyze` endpoint now runs ESLint on submitted code and returns a normalized CodeReviewResult-shaped JSON object. The shape is:
+
+- `overallStatus`: `PASS` or `FAIL` (FAIL when one or more ESLint errors were found)
+- `summary`: short human-readable summary, e.g. "2 issues found." or "No issues found."
+- `files`: array of file results with the fields:
+	- `fileName`: path of the file analyzed
+	- `status`: `PASS` or `FAIL` for that file
+	- `issues`: array of `{ line, type, description }` objects
+
+Example curl request and expected response (trimmed):
+
+```powershell
+curl -X POST http://localhost:3001/analyze -H "Content-Type: application/json" -d '{"code":"const unused = 1; console.log(2);"}' | jq
+
+{
+	"overallStatus": "FAIL",
+	"summary": "1 issues found.",
+	"files": [
+		{
+			"fileName": "/tmp/temp_analysis_...js",
+			"status": "FAIL",
+			"issues": [
+				{ "line": 1, "type": "no-unused-vars", "description": "'unused' is assigned a value but never used." }
+			]
+		}
+	]
+}
+```
+
 ## Run with Docker (recommended)
 
 Build and run both services using Docker Compose:
