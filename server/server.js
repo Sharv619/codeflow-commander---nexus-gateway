@@ -1,3 +1,4 @@
+// Removed accidental markdown code fence
 import express from 'express';
 import bodyParser from 'body-parser';
 import { exec, spawn } from 'child_process';
@@ -7,11 +8,54 @@ import path from 'path';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 
+const AI_REVIEW_PROMPT_TEMPLATE = `You are "Codeflow", a world-class AI software engineering assistant acting as a Principal Engineer. Your mission is to perform a rigorous and constructive code review on the provided code snippet.
+
+Your analysis must be objective, precise, and focused on creating clean, maintainable, and secure code.
+
+The code to review is:
+[CODE_SNIPPET_HERE]
+
+Your response MUST be a single, valid JSON object. Do not include any text, markdown, or explanations outside of this JSON object.
+
+The JSON object must match the documented structure: an object containing overallStatus, summary, score, and files. files should be an array with one entry describing the submitted snippet.
+
+Guidelines (short):
+- overallStatus: Use "FAIL" if any Security, Bug, or critical Performance issues are found; otherwise "PASS".
+- summary: A one-sentence executive summary of the code's quality.
+- score: Integer 1-10 representing overall quality.
+- files: An array with one object describing the reviewed snippet. Include fileName (use "submitted_code.js"), status (PASS/FAIL), an issues array with line, type, description, and link (or null), and an optional suggestions array.
+
+Begin your analysis now.`;
+
 const app = express();
 const port = 3001;
 
 app.use(cors());
 app.use(bodyParser.json());
+
+// Results storage
+const RESULTS_FILE = path.join(process.cwd(), 'results.json');
+let results = [];
+
+function loadResults() {
+  try {
+    if (fs.existsSync(RESULTS_FILE)) {
+      results = JSON.parse(fs.readFileSync(RESULTS_FILE, 'utf8'));
+    }
+  } catch (e) {
+    results = [];
+  }
+}
+
+function saveResults() {
+  try {
+    fs.writeFileSync(RESULTS_FILE, JSON.stringify(results, null, 2));
+  } catch (e) {
+    console.error('Failed to save results:', e);
+  }
+}
+
+loadResults();
 
 // Simple deterministic analyzer that converts a diff string into a CodeReviewResult-like object
 function analyzeCode(diffText) {
@@ -169,6 +213,10 @@ app.post('/analyze', async (req, res) => {
             // Normalize ESLint output into the frontend's expected CodeReviewResult shape
             try {
                 const normalized = normalizeEslintOutput(parsed);
+                // Save the result
+                const resultId = Date.now().toString();
+                results.push({ id: resultId, type: 'analyze', timestamp: new Date().toISOString(), data: normalized });
+                saveResults();
                 return res.json(normalized);
             } catch (normErr) {
                 return res.status(500).json({ error: 'Failed to normalize ESLint output', detail: normErr.message });
@@ -238,6 +286,59 @@ app.post('/api/ai', aiLimiter, async (req, res) => {
     } catch (err) {
         console.error('AI proxy error:', err);
         return res.status(502).json({ error: 'Failed to contact AI provider', detail: err.message });
+    }
+});
+
+// Endpoint to run tests and return output
+app.post('/test', async (req, res) => {
+    try {
+        const jestPath = path.join(process.cwd(), 'node_modules', '.bin', 'jest');
+        const child = spawn('node', [jestPath, '--json'], { stdio: 'pipe' });
+
+        let output = '';
+        let error = '';
+
+        child.stdout.on('data', (data) => {
+            output += data.toString();
+        });
+
+        child.stderr.on('data', (data) => {
+            error += data.toString();
+        });
+
+        child.on('close', (code) => {
+            const success = code === 0;
+            const data = { success, output, error };
+            // Save the result
+            const resultId = Date.now().toString();
+            results.push({ id: resultId, type: 'test', timestamp: new Date().toISOString(), data });
+            saveResults();
+            if (code === 0) {
+                try {
+                    const result = JSON.parse(output);
+                    res.json({ success: true, result });
+                } catch (e) {
+                    res.json({ success: true, output });
+                }
+            } else {
+                res.json({ success: false, output, error });
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/results', (req, res) => {
+    res.json(results);
+});
+
+app.get('/result/:id', (req, res) => {
+    const result = results.find(r => r.id === req.params.id);
+    if (result) {
+        res.json(result);
+    } else {
+        res.status(404).json({ error: 'Result not found' });
     }
 });
 

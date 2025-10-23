@@ -121,18 +121,25 @@ const Pipeline: React.FC = () => {
         ];
         break;
       case 'unit-tests':
-        await sleep(SIMULATION_DELAY_MS, null);
-        logs = [
-          `${ts()} [GO-TEST] Running tests inside container...`,
-          `${ts()} ok      github.com/nexus-gateway/core/auth         0.041s  coverage: 97.2% of statements`,
-          `${ts()} ok      github.com/nexus-gateway/core/routing      0.035s  coverage: 99.1% of statements`,
-          `${ts()} [PASS] core/auth_middleware_test.go`,
-          `${ts()}   ✓ TestValidJWT (0.01s)`,
-          `${ts()}   ✓ TestInvalidJWT (0.01s)`,
-          `${ts()}   ✓ TestExpiredJWT (0.02s)`,
-          `${ts()} [SUCCESS] All 189 gateway tests passed in 3.82s.`,
-          `${ts()} [INFO] Code coverage exceeds required 90% for core gateway logic.`
-        ];
+        try {
+          const response = await fetch('/api/test', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+          const result = await response.json();
+          logs = [
+            `${ts()} [JEST] Running Jest tests...`,
+            `${ts()} [API] Sent request to test service.`,
+            `${ts()} [RESULT] Tests complete. Success: ${result.success}`,
+            `${ts()} [SUMMARY] ${result.success ? 'All tests passed.' : 'Some tests failed.'}`
+          ];
+          success = result.success;
+        } catch (error) {
+          logs = [`${ts()} [ERROR] Failed to run tests.`];
+          success = false;
+        }
         break;
       case 'deploy':
         await sleep(SIMULATION_DELAY_MS, null);

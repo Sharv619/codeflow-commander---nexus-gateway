@@ -7,8 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "test": "jest --no-config",
+    "test:watch": "jest --watch",
     "test:analyze": "node --experimental-fetch scripts/test-analyze.js",
-  "test:ai": "node --experimental-fetch scripts/test-ai.js",
+    "test:ai": "node --experimental-fetch scripts/test-ai.js",
     "server": "node server/server.js",
     "compose:up": "docker compose up --build -d",
     "compose:down": "docker compose down",
@@ -16,17 +18,24 @@
     "compose:build": "docker compose build"
   },
   "dependencies": {
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1",
-    "express-rate-limit": "^6.7.0",
-    "express": "^4.19.2",
     "body-parser": "^1.20.2",
-    "cors": "^2.8.5"
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^6.7.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@types/jest": "^30.0.0",
     "@types/node": "^22.14.0",
+    "eslint": "^8.48.0",
+    "jest": "^30.2.0",
+    "jest-environment-jsdom": "^30.2.0",
+    "jsdom": "^27.0.1",
+    "ts-jest": "^29.4.5",
     "typescript": "~5.8.2",
-    "vite": "^6.2.0",
-    "eslint": "^8.48.0"
+    "vite": "^6.2.0"
   }
 }
