@@ -12,6 +12,29 @@ An interactive CI/CD simulator and lightweight pre-push code reviewer. Use it to
 - **Containerized**: Nginx serves the static frontend; backend runs as a separate container. Development override supports running Vite inside a container.
 - **Git hooks**: Example `pre-push` scripts (bash + PowerShell) that post diffs to `/git-hook`.
 
+## Recent Changes
+
+This session focused on resolving critical application errors and enhancing the CI/CD workflow:
+
+1.  **Initial Error Resolution:**
+    *   Fixed `getaddrinfo ENOTFOUND backend` errors by updating `vite.config.ts` to correctly proxy requests to `http://localhost:3001` for `/api`, `/results`, and `/analyze` endpoints.
+    *   Ensured both the frontend (`npm run dev`) and backend (`npm run server`) run simultaneously for local development.
+
+2.  **Dependency and Linting Fixes:**
+    *   Updated various development dependencies in `package.json` to their latest compatible versions.
+    *   Resolved a dependency conflict by downgrading ESLint to version `8.57.0` (from v9) to maintain compatibility with existing plugins.
+    *   Updated the `.eslintrc.json` file to use the correct parser and plugins for TypeScript and React, ensuring proper linting.
+
+3.  **Test Suite Rectification:**
+    *   Modified `jest.config.cjs` to set the `testEnvironment` to `jsdom` and updated `testMatch` patterns to include `.tsx` files.
+    *   Removed the `--no-config` flag from the `test` script in `package.json` so Jest would use its configuration file.
+    *   Confirmed that all local tests were passing after these changes.
+
+4.  **Pre-push Git Hook Implementation:**
+    *   Converted the CI/CD simulation into a pre-push Git hook.
+    *   The new `hooks/pre-push` script now collects staged changes and automatically runs AI code review and containerized tests before a push, blocking the push if any stage fails.
+    *   The script was made executable.
+
 ## Quick start — Local dev
 
 1. Install dependencies
@@ -71,14 +94,13 @@ Or when using the override (inside container), the default proxy target is `http
 - Bash: `hooks/pre-push`
 - PowerShell: `hooks/pre-push.ps1`
 
-Both scripts attempt to POST the staged diff to **http://localhost:8080/git-hook** (frontend/nginx) and fall back to **http://localhost:3001/git-hook** (backend) if unavailable.
+The `hooks/pre-push` script now runs the full CI/CD simulation (AI Code Review and Containerized Tests) before allowing a push. If any stage fails, the push will be aborted.
 
-To install the hook (example):
+To install the hook:
 
-```powershell
+```bash
 cp hooks/pre-push .git/hooks/pre-push
 chmod +x .git/hooks/pre-push
-# Or for PowerShell hook: copy hooks/pre-push.ps1 to .git/hooks and call it from a shim
 ```
 
 ## Useful NPM / Makefile commands
@@ -104,5 +126,3 @@ If you'd like me to continue, tell me which of the following you'd like next:
 3. Add an optional persistent results backend and an API to fetch previous analyses.
 
 **Pick a number or describe a change and I’ll implement it.**
-
-<!-- Removed duplicate/docker-compose/help section (already present above) -->

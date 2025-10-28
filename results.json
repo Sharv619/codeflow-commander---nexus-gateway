@@ -1,0 +1,54 @@
+[
+  {
+    "id": "1761568741252",
+    "type": "analyze",
+    "timestamp": "2025-10-27T12:39:01.252Z",
+    "data": {
+      "overallStatus": "PASS",
+      "summary": "No issues found.",
+      "files": [
+        {
+          "fileName": "/tmp/temp_analysis_1761568740140.js",
+          "status": "PASS",
+          "issues": []
+        }
+      ]
+    }
+  },
+  {
+    "id": "1761568743201",
+    "type": "test",
+    "timestamp": "2025-10-27T12:39:03.201Z",
+    "data": {
+      "success": false,
+      "output": "",
+      "error": "No tests found, exiting with code 1\nRun with `--passWithNoTests` to exit with code 0\nIn /home/lade/GitHub/codeflow-commander---nexus-gateway\n  31 files checked.\n  roots: /home/lade/GitHub/codeflow-commander---nexus-gateway, /home/lade/GitHub/codeflow-commander---nexus-gateway/tests - 31 matches\n  testMatch: **/__tests__/**/*.ts, **/?(*.)+(spec|test).ts - 0 matches\n  testPathIgnorePatterns: /node_modules/ - 31 matches\n  testRegex:  - 0 matches\nPattern:  - 0 matches\n"
+    }
+  },
+  {
+    "id": "1761571156149",
+    "type": "analyze",
+    "timestamp": "2025-10-27T13:19:16.149Z",
+    "data": {
+      "overallStatus": "PASS",
+      "summary": "No issues found.",
+      "files": [
+        {
+          "fileName": "/tmp/temp_analysis_1761571154970.js",
+          "status": "PASS",
+          "issues": []
+        }
+      ]
+    }
+  },
+  {
+    "id": "1761571158611",
+    "type": "test",
+    "timestamp": "2025-10-27T13:19:18.611Z",
+    "data": {
+      "success": true,
+      "output": "{\"numFailedTestSuites\":0,\"numFailedTests\":0,\"numPassedTestSuites\":1,\"numPassedTests\":1,\"numPendingTestSuites\":0,\"numPendingTests\":0,\"numRuntimeErrorTestSuites\":0,\"numTodoTests\":0,\"numTotalTestSuites\":1,\"numTotalTests\":1,\"openHandles\":[],\"snapshot\":{\"added\":0,\"didUpdate\":false,\"failure\":false,\"filesAdded\":0,\"filesRemoved\":0,\"filesRemovedList\":[],\"filesUnmatched\":0,\"filesUpdated\":0,\"matched\":0,\"total\":0,\"unchecked\":0,\"uncheckedKeysByFile\":[],\"unmatched\":0,\"updated\":0},\"startTime\":1761571158054,\"success\":true,\"testResults\":[{\"assertionResults\":[{\"ancestorTitles\":[\"App\"],\"duration\":2,\"failureDetails\":[],\"failureMessages\":[],\"fullName\":\"App should pass\",\"invocations\":1,\"location\":null,\"numPassingAsserts\":1,\"retryReasons\":[],\"status\":\"passed\",\"title\":\"should pass\"}],\"endTime\":1761571158588,\"message\":\"\",\"name\":\"/home/lade/GitHub/codeflow-commander---nexus-gateway/tests/App.test.tsx\",\"startTime\":1761571158415,\"status\":\"passed\",\"summary\":\"\"}],\"wasInterrupted\":false}\n",
+      "error": "PASS tests/App.test.tsx\n  App\n    ✓ should pass (2 ms)\n\nTest Suites: 1 passed, 1 total\nTests:       1 passed, 1 total\nSnapshots:   0 total\nTime:        0.54 s, estimated 1 s\nRan all test suites.\n"
+    }
+  }
+]

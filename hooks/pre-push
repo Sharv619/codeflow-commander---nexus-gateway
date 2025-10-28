@@ -1,24 +1,51 @@
 #!/usr/bin/env bash
-# Example pre-push hook that collects the diff and posts it to the local analysis server
+# Pre-push hook to run the CI/CD simulation pipeline.
 # Make this executable: chmod +x .git/hooks/pre-push
 
-REMOTE="$1"
-URL="$2"
+set -e
 
-# Collect the pushed commits' diffs
-DIFF=$(git diff --staged --name-only)
+echo "🚀 Starting pre-push CI/CD simulation..."
 
-# For a more accurate diff between local and remote branch, you could use:
-# DIFF=$(git diff origin/main...HEAD)
+# 1. AI Code Review Stage
+echo "🔬 Running AI Code Review..."
+DIFF=$(git diff --staged)
+PAYLOAD=$(jq -n --arg diff "$DIFF" '{"diff": $diff}')
 
-PAYLOAD="$(jq -n --arg branch \"$(git rev-parse --abbrev-ref HEAD)\" --arg commitId \"$(git rev-parse --short HEAD)\" --arg diff \"$(git diff --staged)\" '{branch:$branch, commitId:$commitId, diff:$diff}'))"
+ANALYSIS_RESULT=$(curl -s -X POST http://localhost:3001/analyze -H "Content-Type: application/json" -d "$PAYLOAD")
 
-# Prefer nginx frontend endpoint, fallback to backend directly
-if curl -s -X POST http://localhost:8080/git-hook -H "Content-Type: application/json" -d "$PAYLOAD" >/dev/null; then
-  echo "Sent diff to frontend (/git-hook)"
-elif curl -s -X POST http://localhost:3001/git-hook -H "Content-Type: application/json" -d "$PAYLOAD" >/dev/null; then
-  echo "Sent diff to backend (/git-hook)"
-else
-  echo "Failed to send diff to codeflow analyzer on both http://localhost:8080 and http://localhost:3001" >&2
+if [ -z "$ANALYSIS_RESULT" ]; then
+  echo "❌ Error: Analysis server did not respond." >&2
   exit 1
 fi
+
+ANALYSIS_STATUS=$(echo "$ANALYSIS_RESULT" | jq -r '.overallStatus')
+
+if [ "$ANALYSIS_STATUS" == "FAIL" ]; then
+  echo "❌ AI Code Review Failed. Push aborted." >&2
+  echo "$ANALYSIS_RESULT" | jq
+  exit 1
+else
+  echo "✅ AI Code Review Passed."
+fi
+
+# 2. Containerized Tests Stage
+echo "🧪 Running Containerized Tests..."
+TEST_RESULT=$(curl -s -X POST http://localhost:3001/test)
+
+if [ -z "$TEST_RESULT" ]; then
+  echo "❌ Error: Test server did not respond." >&2
+  exit 1
+fi
+
+TEST_SUCCESS=$(echo "$TEST_RESULT" | jq -r '.success')
+
+if [ "$TEST_SUCCESS" != "true" ]; then
+  echo "❌ Containerized Tests Failed. Push aborted." >&2
+  echo "$TEST_RESULT" | jq
+  exit 1
+else
+  echo "✅ Containerized Tests Passed."
+fi
+
+echo "🎉 All checks passed. Proceeding with push."
+exit 0

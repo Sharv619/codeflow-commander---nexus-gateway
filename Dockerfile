@@ -1,24 +1,10 @@
-# Frontend build stage
-FROM node:18-alpine as build
-WORKDIR /app
-COPY package.json ./
-COPY package-lock.json ./
-RUN npm install
+FROM node:lts-alpine
+ENV NODE_ENV=production
+WORKDIR /usr/src/app
+COPY ["package.json", "package-lock.json*", "npm-shrinkwrap.json*", "./"]
+RUN npm install --production --silent && mv node_modules ../
 COPY . .
-RUN npm run build
-
-# Backend stage
-FROM node:18-alpine
-WORKDIR /app
-COPY --from=build /app/dist ./dist
-COPY server/server.js ./server/
-COPY package.json ./
-COPY package-lock.json ./
-
-# Install backend dependencies
-RUN npm install express body-parser cors
-
-EXPOSE 3001
-EXPOSE 5173
-
-CMD ["node", "server/server.js"]
+EXPOSE 3000
+RUN chown -R node /usr/src/app
+USER node
+CMD ["npm", "start"]
