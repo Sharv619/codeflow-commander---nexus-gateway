@@ -20,7 +20,7 @@ const ResultsHistory: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/results');
+      const res = await fetch('http://localhost:3001/results');
       const data = await res.json();
       setResults(data);
     } catch (err: any) {

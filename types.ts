@@ -22,7 +22,7 @@ export interface StageExecution {
 
 export interface CodeReviewIssue {
   line: number;
-  type: 'Security' | 'Performance' | 'Quality' | 'Bug' | 'Best Practice';
+  type: string; // Changed to string to accommodate ESLint rule IDs
   description: string;
   link?: string;
 }

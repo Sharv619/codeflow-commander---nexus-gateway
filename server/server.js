@@ -7,6 +7,9 @@ import os from 'os';
 import path from 'path';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
+import dotenv from 'dotenv'; // Import dotenv
+
+dotenv.config(); // Load environment variables from .env file
 
 const AI_REVIEW_PROMPT_TEMPLATE = `You are "Codeflow", a world-class AI software engineering assistant acting as a Principal Engineer. Your mission is to perform a rigorous and constructive code review on the provided code snippet.
 
@@ -229,14 +232,76 @@ app.post('/analyze', async (req, res) => {
 });
 
 // Endpoint that would be called by a git hook. Accepts a minimal push payload and runs analysis.
-app.post('/git-hook', (req, res) => {
+app.post('/git-hook', async (req, res) => {
     const { branch, commitId, diff } = req.body;
     console.log(`Git hook received for branch=${branch} commit=${commitId}`);
 
-    const result = analyzeCode(diff || '');
+    const payload = diff || '';
 
-    // Respond with the same CodeReviewResult shape
-    res.json({ branch, commitId, result });
+    if (!payload) {
+        return res.json({ error: 'No diff provided' });
+    }
+
+    const tmpDir = os.tmpdir();
+    const tmpFile = path.join(tmpDir, `temp_git_hook_analysis_${Date.now()}.js`);
+
+    try {
+        fs.writeFileSync(tmpFile, payload, 'utf8');
+
+        const eslintEntry = path.join(process.cwd(), 'node_modules', 'eslint', 'bin', 'eslint.js');
+        const nodeExe = process.execPath;
+
+        let eslint;
+        try {
+            const projectEslintConfig = path.join(process.cwd(), '.eslintrc.json');
+            eslint = spawn(nodeExe, [eslintEntry, '--no-ignore', '--config', projectEslintConfig, tmpFile, '--format', 'json'], { stdio: ['ignore', 'pipe', 'pipe'] });
+        } catch (spawnErr) {
+            try { fs.unlinkSync(tmpFile); } catch (_) {}
+            return res.status(500).json({ error: 'Failed to spawn eslint', detail: spawnErr.message });
+        }
+
+        let out = '';
+        let err = '';
+        eslint.stdout.on('data', (chunk) => { out += chunk.toString(); });
+        eslint.stderr.on('data', (chunk) => { err += chunk.toString(); });
+
+        eslint.on('close', (code) => {
+            let parsed = null;
+            try {
+                if (out && out.trim()) parsed = JSON.parse(out);
+            } catch (e) {
+                parsed = null;
+            }
+
+            if (parsed === null) {
+                try {
+                    if (err && err.trim()) parsed = JSON.parse(err);
+                } catch (e) {
+                    parsed = null;
+                }
+            }
+
+            if (parsed === null) {
+                try { fs.unlinkSync(tmpFile); } catch (_) {}
+                return res.status(500).json({ error: 'Failed to parse ESLint output', stdout: out, stderr: err, exitCode: code });
+            }
+
+            try { fs.unlinkSync(tmpFile); } catch (_) { /* ignore */ }
+
+            try {
+                const normalized = normalizeEslintOutput(parsed);
+                const resultId = Date.now().toString();
+                results.push({ id: resultId, type: 'git-hook-analyze', timestamp: new Date().toISOString(), data: normalized });
+                saveResults();
+                return res.json({ branch, commitId, result: normalized });
+            } catch (normErr) {
+                return res.status(500).json({ error: 'Failed to normalize ESLint output', detail: normErr.message });
+            }
+        });
+    } catch (e) {
+        try { fs.unlinkSync(tmpFile); } catch (_) {}
+        return res.status(500).json({ error: e.message });
+    }
 });
 
 
@@ -276,11 +341,15 @@ app.post('/api/ai', aiLimiter, async (req, res) => {
         const resp = await fetch(geminiUrl, { method: 'POST', headers, body: JSON.stringify(payload) });
         const text = await resp.text();
 
+        // Log the raw response text for debugging
+        console.log('Raw Gemini API response:', text);
+
         // Try parse JSON, otherwise return raw text
         try {
             const json = JSON.parse(text);
             return res.status(resp.status).json(json);
         } catch (e) {
+            console.error('Failed to parse Gemini API response as JSON:', e);
             return res.status(resp.status).type('text').send(text);
         }
     } catch (err) {

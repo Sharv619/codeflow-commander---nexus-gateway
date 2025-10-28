@@ -21,7 +21,7 @@ export default defineConfig(({ mode }) => {
           '/api': {
             target: env.VITE_API_PROXY || 'http://localhost:3001',
             changeOrigin: true,
-            rewrite: (path) => path.replace(/^\/api/, ''),
+            // No rewrite needed, backend expects /api prefix
             secure: false,
           },
           '/results': {

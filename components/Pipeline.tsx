@@ -5,6 +5,7 @@ import { PIPELINE_STAGES, MOCK_SUCCESS_REVIEW, MOCK_FAILURE_REVIEW } from '../co
 import PipelineStage from './PipelineStage';
 import CodeReviewDetails from './CodeReviewDetails';
 import LogOutput from './LogOutput';
+import TestResultsDetails from './TestResultsDetails'; // Import new component
 
 const SIMULATION_DELAY_MS = 1500;
 
@@ -45,8 +46,9 @@ const FailureIcon: React.FC = () => (
 const Pipeline: React.FC = () => {
   const [executions, setExecutions] = useState<Record<string, StageExecution>>({});
   const [pipelineStatus, setPipelineStatus] = useState<'idle' | 'running' | 'success' | 'failed'>('idle');
-  const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
+  const [selectedStageId, setSelectedStageId] = useState<string | null>(null); // Re-added selectedStageId
   const [reviewResult, setReviewResult] = useState<CodeReviewResult | null>(null);
+  const [testResult, setTestResult] = useState<any | null>(null); // New state for Jest results
   const [commitMessage, setCommitMessage] = useState('feat(auth): Improve JWT caching layer');
   const [pipelineStartTime, setPipelineStartTime] = useState<number | null>(null);
   const [totalDuration, setTotalDuration] = useState(0);
@@ -57,6 +59,7 @@ const Pipeline: React.FC = () => {
     setPipelineStatus('idle');
     setSelectedStageId(null);
     setReviewResult(null);
+    setTestResult(null); // Reset new state
     setPipelineStartTime(null);
     setTotalDuration(0);
     setFailedStageName(null);
@@ -86,7 +89,7 @@ const Pipeline: React.FC = () => {
         break;
       case 'ai-review':
         try {
-          const response = await fetch('/api/analyze', {
+          const response = await fetch('http://localhost:3001/analyze', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -122,13 +125,14 @@ const Pipeline: React.FC = () => {
         break;
       case 'unit-tests':
         try {
-          const response = await fetch('/api/test', {
+          const response = await fetch('http://localhost:3001/test', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
           });
           const result = await response.json();
+          setTestResult(result); // Store the full test result
           logs = [
             `${ts()} [JEST] Running Jest tests...`,
             `${ts()} [API] Sent request to test service.`,
@@ -273,10 +277,13 @@ const Pipeline: React.FC = () => {
 
       <div className="p-6 bg-gray-800 rounded-lg shadow-lg min-h-[300px]">
         <h3 className="text-lg font-bold mb-4 border-b border-gray-700 pb-2">
-          {selectedStageId === 'ai-review' && reviewResult ? "AI Code Review Details" : "Logs"}
+          {selectedStageId === 'ai-review' && reviewResult ? "AI Code Review Details" :
+           selectedStageId === 'unit-tests' && testResult ? "Test Results" : "Logs"}
         </h3>
         {selectedStageId === 'ai-review' && reviewResult ? (
           <CodeReviewDetails result={reviewResult} />
+        ) : selectedStageId === 'unit-tests' && testResult ? (
+          <TestResultsDetails result={testResult} />
         ) : (
           <LogOutput logs={selectedExecution?.logs ?? ['Select a stage to view its logs.']} />
         )}

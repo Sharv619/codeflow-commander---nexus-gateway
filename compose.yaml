@@ -1,10 +1,23 @@
-++++services:
-  codeflowcommandernexusgateway:
-    image: codeflowcommandernexusgateway
+services:
+  frontend:
+    image: codeflowcommandernexusgateway-frontend
     build:
       context: .
-      dockerfile: ./Dockerfile
-    environment:
-      NODE_ENV: production
+      dockerfile: Dockerfile.frontend
     ports:
-      - 3000:3000
+      - "8080:80" # Nginx serves the static frontend
+    environment:
+      - VITE_API_PROXY=http://backend:3001 # Frontend proxies to backend service name
+    depends_on:
+      - backend
+
+  backend:
+    image: codeflowcommandernexusgateway-backend
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_API_URL=${GEMINI_API_URL}
+    ports:
+      - "3001:3001"
