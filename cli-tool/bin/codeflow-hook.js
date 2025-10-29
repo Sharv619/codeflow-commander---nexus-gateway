@@ -7,6 +7,7 @@ import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
+import readline from 'readline';
 
 const program = new Command();
 
@@ -23,7 +24,7 @@ program
   .option('-k, --key <key>', 'API key for the chosen provider')
   .option('-u, --url <url>', 'Custom API URL (optional)')
   .option('-m, --model <model>', 'AI model name (optional - uses provider default)')
-  .action((options) => {
+  .action(async (options) => {
     const configDir = path.join(process.env.HOME, '.codeflow-hook');
     if (!fs.existsSync(configDir)) {
       fs.mkdirSync(configDir, { recursive: true });
@@ -32,35 +33,91 @@ program
     const configPath = path.join(configDir, 'config.json');
     const existingConfig = fs.existsSync(configPath) ? JSON.parse(fs.readFileSync(configPath, 'utf8')) : {};
 
+    // Initialize config with existing values, then override with CLI options
     const config = {
-      ...existingConfig,
       provider: options.provider || existingConfig.provider || 'gemini',
       apiKey: options.key || existingConfig.apiKey,
       apiUrl: options.url || existingConfig.apiUrl,
       model: options.model || existingConfig.model
     };
 
-    // Set defaults based on provider
+    // Set default API URL and model if not provided by options or existing config
     if (!config.apiUrl) {
       switch (config.provider) {
         case 'openai':
           config.apiUrl = 'https://api.openai.com/v1/chat/completions';
-          config.model = config.model || 'gpt-4';
+          config.model = config.model || 'gpt-4'; // Default model for OpenAI
           break;
         case 'claude':
           config.apiUrl = 'https://api.anthropic.com/v1/messages';
-          config.model = config.model || 'claude-3-sonnet-20240229';
+          config.model = config.model || 'claude-3-sonnet-20240229'; // Default model for Claude
           break;
         case 'gemini':
         default:
-          config.apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
-          config.model = config.model || 'gemini-pro';
+          // Updated Gemini API URL to v1
+          config.apiUrl = 'https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent';
+          // Default model for Gemini
+          config.model = config.model || 'gemini-pro'; // Using 'gemini-pro' as a common default
           break;
+      }
+    }
+
+    // Interactive model selection if model is not explicitly provided via CLI option
+    // AND if the model is not already set (either from existing config or default)
+    if (!options.model && !config.model) {
+      try {
+        switch (config.provider) {
+          case 'gemini':
+            const geminiModels = ['gemini-1.5-pro-latest', 'gemini-1.5-flash-latest', 'gemini-pro'];
+            const geminiRl = readline.createInterface({
+              input: process.stdin,
+              output: process.stdout
+            });
+            config.model = await new Promise(resolve => {
+              geminiRl.question(chalk.blue(`Select a Gemini model (${geminiModels.join(', ')}): `), (model) => {
+                geminiRl.close();
+                resolve(model || config.model); // Use input or current model if empty
+              });
+            });
+            break;
+          case 'openai':
+            const openaiModels = ['gpt-4o', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo'];
+            const openaiRl = readline.createInterface({
+              input: process.stdin,
+              output: process.stdout
+            });
+            config.model = await new Promise(resolve => {
+              openaiRl.question(chalk.blue(`Select an OpenAI model (${openaiModels.join(', ')}): `), (model) => {
+                openaiRl.close();
+                resolve(model || config.model);
+              });
+            });
+            break;
+          case 'claude':
+            const claudeModels = ['claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'];
+            const claudeRl = readline.createInterface({
+              input: process.stdin,
+              output: process.stdout
+            });
+            config.model = await new Promise(resolve => {
+              claudeRl.question(chalk.blue(`Select a Claude model (${claudeModels.join(', ')}): `), (model) => {
+                claudeRl.close();
+                resolve(model || config.model);
+              });
+            });
+            break;
+        }
+      } catch (error) {
+        console.error(chalk.red(`Error selecting model: ${error.message}`));
+        process.exit(1); // Exit if model selection fails
       }
     }
 
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
     console.log(chalk.green(`✅ Configuration saved for ${config.provider} provider`));
+    if (config.model) {
+      console.log(chalk.green(`   Model: ${config.model}`));
+    }
   });
 
 // Install git hooks

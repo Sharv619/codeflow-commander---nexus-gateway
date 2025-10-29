@@ -34,16 +34,19 @@ Choose your AI provider and configure with your API key:
 ```bash
 codeflow-hook config -p gemini -k YOUR_GEMINI_API_KEY
 ```
+*You'll be prompted to select a model: `gemini-1.5-pro-latest`, `gemini-1.5-flash-latest`, or `gemini-pro`*
 
 **OpenAI:**
 ```bash
 codeflow-hook config -p openai -k YOUR_OPENAI_API_KEY
 ```
+*You'll be prompted to select a model: `gpt-4o`, `gpt-4-turbo`, `gpt-4`, or `gpt-3.5-turbo`*
 
 **Claude/Anthropic:**
 ```bash
 codeflow-hook config -p claude -k YOUR_CLAUDE_API_KEY
 ```
+*You'll be prompted to select a model: `claude-3-opus-20240229`, `claude-3-sonnet-20240229`, or `claude-3-haiku-20240307`*
 
 **Custom model/URL:**
 ```bash
