@@ -80,7 +80,7 @@ program
             });
             break;
           case 'openai':
-            const openaiModels = ['gpt-4o', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo'];
+            const openaiModels = ['gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo'];
             const openaiRl = readline.createInterface({
               input: process.stdin,
               output: process.stdout
