@@ -15,12 +15,14 @@ program
   .description('Interactive CI/CD simulator and AI-powered code reviewer')
   .version('1.0.0');
 
-// Configure Gemini API
+// Configure AI provider settings
 program
   .command('config')
-  .description('Configure Gemini API settings')
-  .requiredOption('-k, --key <key>', 'Gemini API key')
-  .option('-u, --url <url>', 'Gemini API URL', 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent')
+  .description('Configure AI provider settings')
+  .option('-p, --provider <provider>', 'AI provider (gemini, openai, claude)', 'gemini')
+  .option('-k, --key <key>', 'API key for the chosen provider')
+  .option('-u, --url <url>', 'Custom API URL (optional)')
+  .option('-m, --model <model>', 'AI model name (optional - uses provider default)')
   .action((options) => {
     const configDir = path.join(process.env.HOME, '.codeflow-hook');
     if (!fs.existsSync(configDir)) {
@@ -28,13 +30,37 @@ program
     }
 
     const configPath = path.join(configDir, 'config.json');
+    const existingConfig = fs.existsSync(configPath) ? JSON.parse(fs.readFileSync(configPath, 'utf8')) : {};
+
     const config = {
-      geminiApiKey: options.key,
-      geminiApiUrl: options.url
+      ...existingConfig,
+      provider: options.provider || existingConfig.provider || 'gemini',
+      apiKey: options.key || existingConfig.apiKey,
+      apiUrl: options.url || existingConfig.apiUrl,
+      model: options.model || existingConfig.model
     };
 
+    // Set defaults based on provider
+    if (!config.apiUrl) {
+      switch (config.provider) {
+        case 'openai':
+          config.apiUrl = 'https://api.openai.com/v1/chat/completions';
+          config.model = config.model || 'gpt-4';
+          break;
+        case 'claude':
+          config.apiUrl = 'https://api.anthropic.com/v1/messages';
+          config.model = config.model || 'claude-3-sonnet-20240229';
+          break;
+        case 'gemini':
+        default:
+          config.apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
+          config.model = config.model || 'gemini-pro';
+          break;
+      }
+    }
+
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-    console.log(chalk.green('✅ Configuration saved successfully'));
+    console.log(chalk.green(`✅ Configuration saved for ${config.provider} provider`));
   });
 
 // Install git hooks
@@ -115,52 +141,38 @@ exit 0
     }
   });
 
-// Analyze diff with Gemini AI
+// Analyze diff with configured AI provider
 program
   .command('analyze-diff')
-  .description('Analyze git diff with Gemini AI')
+  .description('Analyze git diff with configured AI provider')
   .argument('<diff>', 'Git diff content')
   .action(async (diff) => {
-    const spinner = ora('Analyzing code with Gemini AI...').start();
-
     try {
       const configPath = path.join(process.env.HOME, '.codeflow-hook', 'config.json');
 
       if (!fs.existsSync(configPath)) {
-        spinner.fail('No configuration found. Run: codeflow-hook config -k <api-key>');
+        console.log(chalk.red('No configuration found. Run: codeflow-hook config -k <api-key>'));
         process.exit(1);
       }
 
       const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 
       if (diff.trim() === '') {
-        spinner.info('No changes to analyze');
+        console.log(chalk.gray('ℹ️  No changes to analyze'));
         return;
       }
 
+      const spinner = ora(`Analyzing code with ${config.provider}...`).start();
       const prompt = generateCodeReviewPrompt(diff);
 
-      const payload = {
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.2,
-          topK: 40,
-          topP: 0.95,
-          maxOutputTokens: 2048,
-        }
-      };
-
-      const response = await axios.post(`${config.geminiApiUrl}?key=${config.geminiApiKey}`, payload, {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      const result = response.data.candidates[0].content.parts[0].text;
+      let result;
+      try {
+        result = await callAIProvider(config, prompt);
+      } catch (error) {
+        spinner.fail('Analysis failed');
+        console.error(chalk.red(`AI API Error: ${error.message}`));
+        process.exit(1);
+      }
 
       spinner.succeed('Analysis complete');
 
@@ -168,12 +180,7 @@ program
       displayAnalysisResults(result);
 
     } catch (error) {
-      spinner.fail('Analysis failed');
-      if (error.response) {
-        console.error(chalk.red(`API Error: ${error.response.status} - ${error.response.data.error?.message || 'Unknown error'}`));
-      } else {
-        console.error(chalk.red(error.message));
-      }
+      console.log(chalk.red(`Configuration error: ${error.message}`));
       process.exit(1);
     }
   });
@@ -237,6 +244,78 @@ ${diff}
 \`\`\`
 
 Provide your analysis:`;
+}
+
+function callAIProvider(config, prompt) {
+  switch (config.provider) {
+    case 'openai':
+      return callOpenAI(config, prompt);
+    case 'claude':
+      return callClaude(config, prompt);
+    case 'gemini':
+    default:
+      return callGemini(config, prompt);
+  }
+}
+
+async function callGemini(config, prompt) {
+  const payload = {
+    contents: [{
+      parts: [{
+        text: prompt
+      }]
+    }],
+    generationConfig: {
+      temperature: 0.2,
+      topK: 40,
+      topP: 0.95,
+      maxOutputTokens: 2048,
+    }
+  };
+
+  const response = await axios.post(`${config.apiUrl}?key=${config.apiKey}`, payload, {
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
+
+  return response.data.candidates[0].content.parts[0].text;
+}
+
+async function callOpenAI(config, prompt) {
+  const payload = {
+    model: config.model,
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.2,
+    max_tokens: 2048
+  };
+
+  const response = await axios.post(config.apiUrl, payload, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${config.apiKey}`
+    }
+  });
+
+  return response.data.choices[0].message.content;
+}
+
+async function callClaude(config, prompt) {
+  const payload = {
+    model: config.model,
+    max_tokens: 2048,
+    messages: [{ role: 'user', content: prompt }]
+  };
+
+  const response = await axios.post(config.apiUrl, payload, {
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': config.apiKey,
+      'anthropic-version': '2023-06-01'
+    }
+  });
+
+  return response.data.content[0].text;
 }
 
 function displayAnalysisResults(result) {

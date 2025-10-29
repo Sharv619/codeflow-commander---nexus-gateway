@@ -24,7 +24,7 @@ A globally installable npm package that brings AI-powered code reviews directly 
 
 ### **AI Git Workflow Tool**
 - **Universal Installation**: `npm install -g codeflow-hook` works on any machine
-- **Direct Gemini Integration**: No local servers required - direct API calls
+- **Multi-Provider AI Support**: Gemini, OpenAI, Claude, or custom AI providers
 - **Automated Git Hooks**: Pre-commit and pre-push quality gates
 - **Cross-Platform**: Works on Linux, macOS, and Windows
 - **Team-Ready**: Secure API key management and configuration
@@ -266,7 +266,7 @@ codeflow-hook --help # View available commands
 
 ### **Short Term**
 - **Plugin System**: Custom analysis rules
-- **Multi-Provider AI**: Support for Claude, GPT-4
+- ✅ **Multi-Provider AI**: Support for Claude, GPT-4 (implemented)
 - **Results Dashboard**: Web interface for analysis history
 
 ### **Long Term**

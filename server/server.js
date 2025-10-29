@@ -1,15 +1,14 @@
-// Removed accidental markdown code fence
 import express from 'express';
 import bodyParser from 'body-parser';
-import { exec, spawn } from 'child_process';
+import { spawn } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
-import dotenv from 'dotenv'; // Import dotenv
+import dotenv from 'dotenv';
 
-dotenv.config(); // Load environment variables from .env file
+dotenv.config();
 
 const AI_REVIEW_PROMPT_TEMPLATE = `You are "Codeflow", a world-class AI software engineering assistant acting as a Principal Engineer. Your mission is to perform a rigorous and constructive code review on the provided code snippet.
 
@@ -36,7 +35,7 @@ const port = 3001;
 app.use(cors());
 app.use(bodyParser.json());
 
-// Results storage
+// Results storage - persisted to results.json
 const RESULTS_FILE = path.join(process.cwd(), 'results.json');
 let results = [];
 
@@ -151,25 +150,18 @@ app.post('/analyze', async (req, res) => {
     const { code, diff, commit } = req.body;
     console.log('Analyze request received — commit:', commit ? commit.id : '(no commit)');
 
-    // Prefer code, then diff, then empty (ESLint expects actual source code)
     const payload = code || diff || '';
 
-    // If no payload, return an empty result
     if (!payload) {
         return res.json({ error: 'No code provided' });
     }
 
-    // Write payload to a temporary file
     const tmpDir = os.tmpdir();
     const tmpFile = path.join(tmpDir, `temp_analysis_${Date.now()}.js`);
 
     try {
         fs.writeFileSync(tmpFile, payload, 'utf8');
 
-        // Execute ESLint with JSON output. Use npx to ensure local bin is used.
-        // Use --no-ignore to avoid skipping files and ensure eslint runs on the temp file
-        // Use the local eslint binary from node_modules to avoid relying on 'npx' in PATH
-        // Use Node to execute the installed eslint JS entrypoint to avoid platform shell issues
         const eslintEntry = path.join(process.cwd(), 'node_modules', 'eslint', 'bin', 'eslint.js');
         const nodeExe = process.execPath;
 
@@ -334,8 +326,6 @@ app.post('/api/ai', aiLimiter, async (req, res) => {
             headers['Authorization'] = `Bearer ${process.env.GEMINI_API_KEY}`;
         }
 
-        // Forward a simple JSON payload; adapters can translate as needed for the
-        // specific Gemini/VertexAI/OpenAI API shape you target.
         const payload = { model, input };
 
         const resp = await fetch(geminiUrl, { method: 'POST', headers, body: JSON.stringify(payload) });

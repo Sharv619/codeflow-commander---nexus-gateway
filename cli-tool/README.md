@@ -26,12 +26,28 @@ npm install --save-dev codeflow-hook
 
 ## ⚙️ Setup
 
-### 1. Configure Gemini API
+### 1. Configure AI Provider
 
-Get your Gemini API key from [Google AI Studio](https://makersuite.google.com/app/apikey) and configure:
+Choose your AI provider and configure with your API key:
 
+**Gemini (default):**
 ```bash
-codeflow-hook config -k YOUR_GEMINI_API_KEY
+codeflow-hook config -p gemini -k YOUR_GEMINI_API_KEY
+```
+
+**OpenAI:**
+```bash
+codeflow-hook config -p openai -k YOUR_OPENAI_API_KEY
+```
+
+**Claude/Anthropic:**
+```bash
+codeflow-hook config -p claude -k YOUR_CLAUDE_API_KEY
+```
+
+**Custom model/URL:**
+```bash
+codeflow-hook config -p openai -k YOUR_API_KEY -m gpt-3.5-turbo -u https://your-custom-endpoint.com
 ```
 
 ### 2. Install Git Hooks
@@ -150,10 +166,20 @@ Configuration is stored in `~/.codeflow-hook/config.json`:
 
 ```json
 {
-  "geminiApiKey": "your-api-key",
-  "geminiApiUrl": "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
+  "provider": "gemini",
+  "apiKey": "your-api-key",
+  "apiUrl": "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent",
+  "model": "gemini-pro"
 }
 ```
+
+### Supported AI Providers
+
+- **Gemini**: `provider: "gemini"` - Default, uses Google AI
+- **OpenAI**: `provider: "openai"` - GPT models
+- **Claude**: `provider: "claude"` - Anthropic models
+
+Each provider has optimized prompts and supports custom endpoints.
 
 ## 📋 Requirements
 
