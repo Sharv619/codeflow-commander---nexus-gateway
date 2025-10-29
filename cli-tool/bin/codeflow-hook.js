@@ -54,8 +54,8 @@ program
           break;
         case 'gemini':
         default:
-          // Updated Gemini API URL to v1
-          config.apiUrl = 'https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent';
+          // Updated Gemini API URL to v1 - using a base URL
+          config.apiUrl = 'https://generativelanguage.googleapis.com/v1/models';
           // Default model for Gemini
           config.model = config.model || 'gemini-pro'; // Using 'gemini-pro' as a common default
           break;
@@ -330,7 +330,8 @@ async function callGemini(config, prompt) {
     }
   };
 
-  const response = await axios.post(`${config.apiUrl}?key=${config.apiKey}`, payload, {
+  const url = `${config.apiUrl}/${config.model}:generateContent?key=${config.apiKey}`;
+  const response = await axios.post(url, payload, {
     headers: {
       'Content-Type': 'application/json'
     }
