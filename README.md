@@ -1,127 +1,298 @@
 
-# Codeflow Commander — Nexus Gateway
+# Codeflow Commander — Complete DevOps & AI Development Tool Suite
 
+A comprehensive platform combining an **interactive CI/CD simulator** with a **universal AI-powered Git workflow tool**. Use it to prototype deployment pipelines, simulate code quality gates, and enhance developer workflows with AI-driven code reviews.
 
+## 🏗️ **Project Overview**
 
-An interactive CI/CD simulator and lightweight pre-push code reviewer. Use it to prototype automated checks (static analysis, linters, container scans) and to test UI flows for gating deployments.
+This repository contains two powerful components that work together to revolutionize developer workflows:
 
-## Highlights
+### **1. Interactive CI/CD Simulator** (Main App)
+A containerized React application that simulates complete CI/CD pipelines with live code analysis, allowing teams to prototype and test deployment workflows before implementation.
 
-- **Frontend**: React + Vite UI that simulates pipeline stages and shows logs and code-review details.
-- **Backend**: Minimal Express analysis server (`/analyze`, `/git-hook`) that accepts diffs and returns a CodeReviewResult-shaped payload.
-- **Containerized**: Nginx serves the static frontend; backend runs as a separate container. Development override supports running Vite inside a container.
-- **Git hooks**: Example `pre-push` scripts (bash + PowerShell) that post diffs to `/git-hook`.
+### **2. Codeflow Hook CLI Tool** (`cli-tool/` directory)
+A globally installable npm package that brings AI-powered code reviews directly into any developer's git workflow through automated hooks and direct Gemini AI integration.
 
-## Recent Changes
+## ✨ **Key Features**
 
-This session focused on resolving critical application errors and enhancing the CI/CD workflow:
+### **CI/CD Simulator**
+- **Interactive Pipeline UI**: React + Vite interface simulating deployment stages
+- **Live Code Analysis**: Real-time ESLint and Jest integration with detailed feedback
+- **Container Orchestration**: Docker Compose setup with Nginx frontend and Express backend
+- **AI Console**: Direct Gemini AI integration for advanced code analysis
+- **Development Workflow**: Hot-reload development with containerized overrides
 
-1.  **Initial Error Resolution:**
-    *   Fixed `getaddrinfo ENOTFOUND backend` errors by updating `vite.config.ts` to correctly proxy requests to `http://localhost:3001` for `/api`, `/results`, and `/analyze` endpoints.
-    *   Ensured both the frontend (`npm run dev`) and backend (`npm run server`) run simultaneously for local development.
+### **AI Git Workflow Tool**
+- **Universal Installation**: `npm install -g codeflow-hook` works on any machine
+- **Direct Gemini Integration**: No local servers required - direct API calls
+- **Automated Git Hooks**: Pre-commit and pre-push quality gates
+- **Cross-Platform**: Works on Linux, macOS, and Windows
+- **Team-Ready**: Secure API key management and configuration
 
-2.  **Dependency and Linting Fixes:**
-    *   Updated various development dependencies in `package.json` to their latest compatible versions.
-    *   Resolved a dependency conflict by downgrading ESLint to version `8.57.0` (from v9) to maintain compatibility with existing plugins.
-    *   Updated the `.eslintrc.json` file to use the correct parser and plugins for TypeScript and React, ensuring proper linting.
+## 🆕 **Recent Major Enhancements**
 
-3.  **Test Suite Rectification:**
-    *   Modified `jest.config.cjs` to set the `testEnvironment` to `jsdom` and updated `testMatch` patterns to include `.tsx` files.
-    *   Removed the `--no-config` flag from the `test` script in `package.json` so Jest would use its configuration file.
-    *   Confirmed that all local tests were passing after these changes.
+### **GitHub Actions CI/CD Integration**
+- **CSP Hash Injection**: Automatic Content Security Policy updates via GitHub Actions
+- **Permission Resolution**: Fixed repository write access for automated deployments
+- **Branch Management**: Organized codebase with dedicated feature branches
 
-4.  **Pre-push Git Hook Implementation:**
-    *   Converted the CI/CD simulation into a pre-push Git hook.
-    *   The new `hooks/pre-push` script now collects staged changes and automatically runs AI code review and containerized tests before a push, blocking the push if any stage fails.
-    *   The script was made executable.
+### **AI-Powered Development Tool**
+- **Universal CLI Creation**: Transformed simulator into globally distributable npm package
+- **Direct AI Integration**: Eliminated local server dependencies for broader adoption
+- **Enhanced Git Hooks**: Sophisticated pre-commit and pre-push automation
+- **Security & Privacy**: Local API key storage with minimal data transmission
 
-## Quick start — Local dev
+### **Infrastructure Improvements**
+- **Development Fixes**: Resolved backend connectivity and dependency conflicts
+- **Test Suite Enhancement**: Configured Jest for comprehensive React component testing
+- **Container Optimization**: Streamlined Docker setup with development overrides
+- **Git Workflow Integration**: Automated quality checks in development workflow
 
-1.  **Install dependencies**
-    ```bash
-    npm install
-    ```
+## 🚀 **Quick Start Guide**
 
-2.  **Configure Environment Variables:**
-    *   Create a `.env` file in the project root (copy from `.env.example`).
-    *   Set `VITE_API_PROXY=http://localhost:3001` for local development.
-    *   Set `GEMINI_API_KEY=YOUR_GEMINI_API_KEY` and `GEMINI_API_URL=https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent` for the AI Console.
+### **Option 1: Use the CLI Tool (Recommended for Developers)**
 
-3.  **Run the frontend dev server (Vite) in one terminal**
-    ```bash
-    npm run dev
-    ```
-
-4.  **Run the backend server in another terminal**
-    ```bash
-    npm run server
-    ```
-
-The frontend will make analysis requests to **http://localhost:3001**.
-
-## Run with Docker (recommended)
-
-1.  **Configure Environment Variables:**
-    *   Create a `.env` file in the project root (copy from `.env.example`).
-    *   Set `VITE_API_PROXY=http://backend:3001` (as `backend` is the service name within the Docker network).
-    *   Set `GEMINI_API_KEY=YOUR_GEMINI_API_KEY` and `GEMINI_API_URL=https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent` for the AI Console.
-
-2.  **Build and run both services using Docker Compose:**
-    ```bash
-    docker compose up --build -d
-    ```
-
--   Frontend (static, served by Nginx): `http://localhost:8080`
--   Backend API: `http://localhost:3001`
-
-When using the static frontend, requests to `/analyze`, `/git-hook`, and `/api/ai` are proxied by Nginx to the backend.
-
-### Development override (hot-reload inside container)
-
-The repository includes `docker-compose.override.yml` which lets the frontend run Vite inside the container and mounts the repo into `/app`. Use the same compose command above — the override is applied automatically by Docker Compose.
-
-The Vite dev server proxies `/api/*` to a backend target configured by the `VITE_API_PROXY` env var. When using the override (inside container), the default proxy target is `http://backend:3001`.
-
-**Ports used by the project**
-
--   Vite dev server (override / containerized): **5173**
--   Nginx static frontend: **8080**
--   Backend API: **3001**
-
-## Git hooks
-
--   Bash: `hooks/pre-push`
--   PowerShell: `hooks/pre-push.ps1`
-
-The `hooks/pre-push` script now runs the full CI/CD simulation (AI Code Review and Containerized Tests) before allowing a push. If any stage fails, the push will be aborted.
-
-To install the hook:
+For immediate AI-powered development workflow enhancement:
 
 ```bash
-cp hooks/pre-push .git/hooks/pre-push
-chmod +x .git/hooks/pre-push
+# Install globally
+npm install -g codeflow-hook
+
+# Configure Gemini AI (get key from Google AI Studio)
+codeflow-hook config -k YOUR_GEMINI_API_KEY
+
+# Install in any git repository
+cd your-project
+codeflow-hook install
 ```
 
-## Useful NPM / Makefile commands
+### **Option 2: Run the Full CI/CD Simulator**
 
--   Start dev frontend: `npm run dev`
--   Start backend server: `npm run server`
--   Docker compose up: `npm run compose:up` or `make up`
--   Docker compose down: `npm run compose:down` or `make down`
--   Stream logs: `npm run compose:logs` or `make logs`
+For pipeline prototyping and interactive analysis:
 
-## Notes & next steps
+#### **Local Development Setup**
+1. **Install dependencies**
+   ```bash
+   npm install
+   ```
 
--   The AI Console now requires `GEMINI_API_KEY` and `GEMINI_API_URL` to be configured in your `.env` file.
--   The CI/CD pipeline now integrates real ESLint and Jest output, displayed in the UI for detailed feedback.
--   Secure the analysis API before exposing it externally (add authentication, TLS, request validation).
--   Consider adding a persistent results store (DB) and WebSocket/Server-Sent Events so the frontend can display push results in real time.
+2. **Configure Environment Variables**
+   - Create `.env` file with `GEMINI_API_KEY` and `VITE_API_PROXY=http://localhost:3001`
 
-## Contributing
+3. **Run Services**
+   ```bash
+   # Terminal 1: Frontend
+   npm run dev
 
-If you'd like me to continue, tell me which of the following you'd like next:
+   # Terminal 2: Backend
+   npm run server
+   ```
 
-1.  Add Vite proxy adjustments for Windows host.docker.internal by default.
-2.  Add an optional persistent results backend and an API to fetch previous analyses.
+#### **Production Setup with Docker**
+```bash
+# Build and run with Docker Compose
+docker compose up --build -d
 
-**Pick a number or describe a change and I’ll implement it.**
+# Frontend: http://localhost:8080
+# Backend API: http://localhost:3001
+```
+
+### **Development Override (Hot-Reload in Container)**
+```bash
+# Uses docker-compose.override.yml for development
+docker compose up --build -d
+# Vite dev server on port 5173 with hot reload
+```
+
+## 🏛️ **Architecture Details**
+
+### **CI/CD Simulator Architecture**
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   React UI      │    │   Express       │    │   Gemini AI     │
+│   (Vite)        │────│   Backend       │────│   Console       │
+│   localhost:5173 │    │   localhost:3001│    │                 │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+         │                       │                       │
+         └───────── Nginx ───────┴──── Docker Network ───┘
+                         Production: localhost:8080
+```
+
+### **CLI Tool Architecture**
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Developer     │    │   CLI Tool      │    │   Gemini AI     │
+│   Workflow      │────│   (npm package) │────│   API           │
+│   (Any Git Repo)│    │   Direct calls   │    │                 │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+         │                       │                       │
+         └─────── Git Hooks ─────┴─────── Quality Gates ─┘
+                  Pre-commit & Pre-push automation
+```
+
+## 📁 **Project Structure**
+
+```
+codeflow-commander---nexus-gateway/
+├── 📂 cli-tool/                 # Universal npm package (NEW)
+│   ├── package.json            # NPM configuration
+│   ├── bin/codeflow-hook.js    # CLI executable
+│   └── README.md               # Tool documentation
+├── 📂 components/              # React UI components
+├── 📂 hooks/                   # Example git hooks
+├── 📂 nginx/                   # Web server configuration
+├── 📂 scripts/                 # Utility scripts
+├── 📂 server/                  # Express backend API
+├── 📂 tests/                   # Jest test suite
+├── 📂 .github/workflows/       # GitHub Actions CI/CD
+├── docker-compose.yml          # Container orchestration
+├── vite.config.ts             # Frontend build config
+└── README.md                  # This documentation
+```
+
+## 🔧 **CLI Tool Commands**
+
+```bash
+codeflow-hook config -k <api-key>     # Setup Gemini AI
+codeflow-hook install                 # Install git hooks
+codeflow-hook analyze-diff <diff>    # Manual analysis
+codeflow-hook status                  # Check configuration
+```
+
+### **Git Hook Integration**
+- **Pre-commit**: AI analysis of staged changes
+- **Pre-push**: Full CI simulation (tests + AI review)
+
+## 🐳 **Docker Services**
+
+| Service | Port | Purpose |
+|---------|------|---------|
+| Frontend (Vite) | 5173 | Development with hot-reload |
+| Frontend (Nginx) | 8080 | Production static serving |
+| Backend API | 3001 | Express server with AI integration |
+
+## ⚙️ **Configuration**
+
+### **Environment Variables** (`.env`)
+```bash
+GEMINI_API_KEY=your-key-here
+GEMINI_API_URL=https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent
+VITE_API_PROXY=http://localhost:3001
+```
+
+### **GitHub Actions**
+- **CSP Injection**: Automatic hash updates on main branch pushes
+- **Permissions**: Repository write access for auto-commits
+
+## 📊 **Development Workflow**
+
+### **For Individual Developers**
+1. Install CLI tool globally: `npm install -g codeflow-hook`
+2. Configure AI: `codeflow-hook config -k <key>`
+3. Enable in any project: `codeflow-hook install`
+4. Get AI feedback on every commit and push
+
+### **For Teams & CI/CD**
+1. Use the interactive simulator to prototype pipelines
+2. Deploy containerized version for team collaboration
+3. Integrate CLI tool into team development workflows
+4. Customize analysis rules and feedback templates
+
+## 🧪 **Testing & Quality**
+
+### **Automated Testing**
+- **Jest**: React component testing with jsdom
+- **ESLint**: Code quality and consistency checks
+- **Git Hooks**: Automated pre-commit quality gates
+
+### **Manual Testing**
+- **AI Console**: Direct Gemini API interaction testing
+- **Pipeline Simulation**: End-to-end CI/CD workflow validation
+
+## 🔒 **Security & Privacy**
+
+### **CLI Tool Security**
+- API keys stored locally (`~/.codeflow-hook/config.json`)
+- Git-ignored configuration files
+- Minimal data transmission (diffs only, no full code)
+
+### **Container Security**
+- Non-root container execution
+- Minimal attack surface
+- Environment-based secrets management
+
+## 🚦 **API Endpoints**
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/analyze` | POST | Code analysis requests |
+| `/git-hook` | POST | Git hook diff processing |
+| `/api/ai` | POST | Direct Gemini AI proxy |
+| `/results` | GET | Analysis history retrieval |
+
+## 🤝 **Contributing**
+
+We welcome contributions to both the simulator and CLI tool:
+
+### **Development Setup**
+1. Clone repository and setup simulator (see Quick Start)
+2. Work on CLI tool in `cli-tool/` directory
+3. Test changes across both components
+
+### **Pull Request Guidelines**
+- Update both READMEs for feature changes
+- Include tests for new functionality
+- Validate CLI tool installation process
+- Ensure Docker builds remain functional
+
+## 🛠️ **Useful Commands**
+
+### **Simulator Commands**
+```bash
+npm run dev          # Start frontend development
+npm run server       # Start backend API
+npm run test         # Run Jest tests
+npm run compose:up   # Docker services
+make logs           # View container logs
+```
+
+### **CLI Tool Commands**
+```bash
+npm install -g .     # Install CLI locally
+codeflow-hook --help # View available commands
+```
+
+## 📈 **Roadmap & Future Enhancements**
+
+### **Short Term**
+- **Plugin System**: Custom analysis rules
+- **Multi-Provider AI**: Support for Claude, GPT-4
+- **Results Dashboard**: Web interface for analysis history
+
+### **Long Term**
+- **Team Analytics**: Code review insights and trends
+- **Integration APIs**: Webhooks for external tools
+- **Offline Mode**: Cached AI analysis capabilities
+
+## 📄 **License**
+
+MIT License - see LICENSE file for details
+
+## 🙏 **Acknowledgments**
+
+Built with ❤️ using:
+- **React & Vite** for modern frontend development
+- **Express.js** for robust API architecture
+- **Docker** for containerization excellence
+- **Google Gemini AI** for intelligent code analysis
+- **Commander.js** for professional CLI experiences
+
+---
+
+**Ready to revolutionize your development workflow?** Choose your path:
+
+🎯 **For individual developers**: Install the CLI tool for instant AI-powered Git workflows
+🏗️ **For teams**: Deploy the simulator to prototype and perfect your CI/CD pipelines
+🤝 **For contributors**: Join us in building the future of developer tooling
+
+**Start with `npm install -g codeflow-hook` and experience AI-enhanced development today!**
