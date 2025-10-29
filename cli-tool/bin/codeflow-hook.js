@@ -63,8 +63,7 @@ program
     }
 
     // Interactive model selection if model is not explicitly provided via CLI option
-    // AND if the model is not already set (either from existing config or default)
-    if (!options.model && !config.model) {
+    if (!options.model) {
       try {
         switch (config.provider) {
           case 'gemini':
