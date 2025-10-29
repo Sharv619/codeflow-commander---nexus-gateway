@@ -20,10 +20,17 @@ const ResultsHistory: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
+      console.log('Fetching results from http://localhost:3001/results');
       const res = await fetch('http://localhost:3001/results');
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`HTTP error! status: ${res.status}, body: ${errorText}`);
+      }
       const data = await res.json();
+      console.log('Fetched results:', data);
       setResults(data);
     } catch (err: any) {
+      console.error('Error fetching results:', err);
       setError(err?.message || String(err));
     } finally {
       setLoading(false);
