@@ -41,61 +41,98 @@ program
       model: options.model || existingConfig.model
     };
 
-    // Set default API URL and model if not provided by options or existing config
+    // Interactive model selection if model is not explicitly provided via CLI option or if no existing config
+    if (!options.model && (!existingConfig.model || !existingConfig.provider)) {
+      console.log(chalk.blue('🔍 No model specified or no previous configuration found.'));
+      console.log(chalk.blue('📡 Fetching available models...'));
+
+      const modelSpinner = ora('Contacting API...').start();
+      try {
+        const models = await fetchModels(config.provider, config.apiKey);
+        modelSpinner.succeed('Models fetched successfully');
+
+        console.log(chalk.blue('Available models:'));
+        models.forEach((model, index) => {
+          console.log(chalk.gray(`  ${index + 1}. ${model}`));
+        });
+
+        const rl = readline.createInterface({
+          input: process.stdin,
+          output: process.stdout
+        });
+
+        const selectedModel = await new Promise(resolve => {
+          rl.question(chalk.blue(`Enter the model name (or number): `), (input) => {
+            rl.close();
+            resolve(input.trim());
+          });
+        });
+
+        // Check if user entered a number
+        const index = parseInt(selectedModel) - 1;
+        if (!isNaN(index) && index >= 0 && index < models.length) {
+          config.model = models[index];
+        } else {
+          config.model = selectedModel;
+        }
+
+        console.log(chalk.green(`✓ Selected model: ${config.model}`));
+
+      } catch (error) {
+        modelSpinner.fail('Failed to fetch models');
+        console.error(chalk.red(`❌ API Error: ${error.message}`));
+        // Fallback to hardcoded list if API call fails
+        const fallbackModels = getFallbackModels(config.provider);
+
+        console.log(chalk.yellow('⚠️ Using fallback model list:'));
+        fallbackModels.forEach((model, index) => {
+          console.log(chalk.gray(`  ${index + 1}. ${model}`));
+        });
+
+        const rl = readline.createInterface({
+          input: process.stdin,
+          output: process.stdout
+        });
+
+        const selectedModel = await new Promise(resolve => {
+          rl.question(chalk.blue(`Select a model (name or number): `), (input) => {
+            rl.close();
+            resolve(input.trim());
+          });
+        });
+
+        const index = parseInt(selectedModel) - 1;
+        if (!isNaN(index) && index >= 0 && index < fallbackModels.length) {
+          config.model = fallbackModels[index];
+        } else {
+          config.model = selectedModel;
+        }
+
+        console.log(chalk.green(`✓ Selected fallback model: ${config.model}`));
+      }
+    } else if (!options.model && existingConfig.model && existingConfig.provider) {
+      // Keep existing model if user didn't specify one but has existing config
+      config.model = existingConfig.model;
+      console.log(chalk.blue(`📚 Using existing model: ${config.model}`));
+    } else {
+      // User explicitly provided model
+      console.log(chalk.green(`✓ Using specified model: ${config.model}`));
+    }
+
+    // Set default API URL if not provided by options or existing config
     if (!config.apiUrl) {
       switch (config.provider) {
         case 'openai':
           config.apiUrl = 'https://api.openai.com/v1/chat/completions';
-          config.model = config.model || 'gpt-4'; // Default model for OpenAI
           break;
         case 'claude':
           config.apiUrl = 'https://api.anthropic.com/v1/messages';
-          config.model = config.model || 'claude-3-sonnet-20240229'; // Default model for Claude
           break;
         case 'gemini':
         default:
           // Updated Gemini API URL to v1 - using a base URL
           config.apiUrl = 'https://generativelanguage.googleapis.com/v1/models';
-          // Default model for Gemini
-          config.model = config.model || 'gemini-pro'; // Using 'gemini-pro' as a common default
           break;
-      }
-    }
-
-    // Interactive model selection if model is not explicitly provided via CLI option
-    if (!options.model) {
-      const modelSpinner = ora('Fetching available models...').start();
-      try {
-        const models = await fetchModels(config.provider, config.apiKey);
-        modelSpinner.succeed('Models fetched');
-
-        const rl = readline.createInterface({
-          input: process.stdin,
-          output: process.stdout
-        });
-
-        config.model = await new Promise(resolve => {
-          rl.question(chalk.blue(`Select a model (${models.join(', ')}): `), (model) => {
-            rl.close();
-            resolve(model || config.model); // Use input or current model if empty
-          });
-        });
-
-      } catch (error) {
-        modelSpinner.fail('Failed to fetch models');
-        console.error(chalk.red(`Error: ${error.message}`));
-        // Fallback to hardcoded list if API call fails
-        const fallbackModels = getFallbackModels(config.provider);
-        const rl = readline.createInterface({
-          input: process.stdin,
-          output: process.stdout
-        });
-        config.model = await new Promise(resolve => {
-          rl.question(chalk.blue(`Could not fetch models. Select a fallback model (${fallbackModels.join(', ')}): `), (model) => {
-            rl.close();
-            resolve(model || config.model);
-          });
-        });
       }
     }
 
