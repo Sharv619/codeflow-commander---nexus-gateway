@@ -8,6 +8,11 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os'; // Make sure os is imported
 import readline from 'readline';
+import { indexProject } from './rag.js';
+import { orchestrateReview } from './agents.js';
+
+// Export for use in agents module
+export { callAIProvider };
 
 const program = new Command();
 
@@ -194,6 +199,45 @@ program
     }
   });
 
+// Index project knowledge base for RAG
+program
+  .command('index')
+  .description('Index project files for Retrieval-Augmented Generation (RAG)')
+  .option('-d, --dry-run', 'Show what files would be indexed without actually indexing')
+  .action(async (options) => {
+    try {
+      const configPath = path.join(os.homedir(), '.codeflow-hook', 'config.json');
+
+      if (!fs.existsSync(configPath)) {
+        console.log(chalk.red('No configuration found. Run: codeflow-hook config -k <api-key>'));
+        process.exit(1);
+      }
+
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      const spinner = ora('Indexing project knowledge base...').start();
+
+      if (options.dryRun) {
+        spinner.stop();
+        console.log(chalk.blue('🔍 Dry run mode - files to be indexed:'));
+        const { findKeyFiles } = await import('./rag.js');
+        const keyFiles = await findKeyFiles(process.cwd());
+        keyFiles.forEach(file => console.log(chalk.gray(`  - ${file}`)));
+        console.log(chalk.green(`📊 Total files to index: ${keyFiles.length}`));
+        return;
+      }
+
+      const result = await indexProject(config);
+
+      spinner.succeed('Knowledge base indexing complete');
+      console.log(chalk.green(`✅ Indexed ${result.indexedFiles} files with ${result.totalChunks} chunks`));
+      console.log(chalk.blue('📁 Knowledge base stored in: .codeflow/index/'));
+
+    } catch (error) {
+      console.error(chalk.red(`❌ Indexing failed: ${error.message}`));
+      process.exit(1);
+    }
+  });
+
 // Install git hooks
 program
   .command('install')
@@ -254,15 +298,16 @@ exit 0
     }
   });
 
-// Analyze diff with configured AI provider
+// Analyze diff with specialized AI agents
 program
   .command('analyze-diff')
-  .description('Analyze git diff with configured AI provider')
-  // CHANGE 2: The argument is now OPTIONAL (square brackets)
+  .description('Analyze git diff using specialized AI agents (RAG-enhanced)')
   .argument('[diff]', 'Git diff content')
-  .action(async (diff) => {
+  .option('--legacy', 'Use legacy monolithic analysis instead of agentic workflow')
+  .option('--no-rag', 'Disable RAG context retrieval')
+  .action(async (diff, options) => {
     try {
-      // CHANGE 3: New logic block to read from stdin if no argument is given
+      // Read diff content from stdin or argument
       let diffContent = diff;
       if (!diffContent) {
         const chunks = [];
@@ -286,20 +331,46 @@ program
         return;
       }
 
-      const spinner = ora(`Analyzing code with ${config.provider}...`).start();
-      const prompt = generateCodeReviewPrompt(diffContent);
+      // Legacy mode: use original monolithic analysis
+      if (options.legacy) {
+        const spinner = ora(`Analyzing code with ${config.provider}...`).start();
+        const prompt = generateCodeReviewPrompt(diffContent);
 
-      let result;
+        let result;
+        try {
+          result = await callAIProvider(config, prompt);
+        } catch (error) {
+          spinner.fail('Analysis failed');
+          console.error(chalk.red(`AI API Error: ${error.message}`));
+          process.exit(1);
+        }
+
+        spinner.succeed('Analysis complete');
+        displayAnalysisResults(result);
+        return;
+      }
+
+      // Agentic workflow mode
+      const spinner = ora(`Running specialized code review agents...`).start();
+
+      let results;
       try {
-        result = await callAIProvider(config, prompt);
+        if (options.rag === false) {
+          // Force no RAG context
+          const { orchestrateReviewWithoutRAG } = await import('./agents.js');
+          results = await orchestrateReviewWithoutRAG(diffContent, config);
+        } else {
+          // Use RAG-enabled workflow
+          results = await orchestrateReview(diffContent, config);
+        }
       } catch (error) {
         spinner.fail('Analysis failed');
-        console.error(chalk.red(`AI API Error: ${error.message}`));
+        console.error(chalk.red(`Agent analysis failed: ${error.message}`));
         process.exit(1);
       }
 
-      spinner.succeed('Analysis complete');
-      displayAnalysisResults(result);
+      spinner.succeed('Agentic analysis complete');
+      displayAgenticResults(results);
 
     } catch (error) {
       console.log(chalk.red(`Configuration error: ${error.message}`));
@@ -588,6 +659,79 @@ function displayAnalysisResults(result) {
   }
 
   console.log();
+}
+
+function displayAgenticResults(results) {
+  if (!results || results.length === 0) {
+    console.log(chalk.green('✅ No issues found in the analysis.'));
+    return;
+  }
+
+  // Group results by file and type
+  const groupedResults = {};
+  const summaryStats = { security: 0, architecture: 0, maintainability: 0 };
+
+  for (const result of results) {
+    const key = `${result.file}:${result.scopeType}`;
+    if (!groupedResults[key]) {
+      groupedResults[key] = [];
+    }
+    groupedResults[key].push(result);
+
+    // Count by severity for summary
+    summaryStats[result.type.toLowerCase()]++;
+  }
+
+  // Display summary stats
+  console.log(chalk.blue('📊 Code Review Summary:'));
+  console.log(`   🔒 Security issues: ${summaryStats.security}`);
+  console.log(`   🏗️  Architecture issues: ${summaryStats.architecture}`);
+  console.log(`   📝 Maintainability issues: ${summaryStats.maintainability}`);
+  console.log();
+
+  // Display detailed results by file and scope
+  for (const [scopeKey, scopeResults] of Object.entries(groupedResults)) {
+    const [file, scopeType] = scopeKey.split(':');
+    console.log(chalk.yellow(`📁 ${file} (${scopeType})`));
+
+    for (const result of scopeResults) {
+      const severityColor = getSeverityColor(result.severity);
+      const typeIcon = getTypeIcon(result.type);
+      console.log(`   ${severityColor}${typeIcon} ${result.severity}: ${result.description}`);
+      if (result.line && result.line !== 'N/A') {
+        console.log(chalk.gray(`      Line: ${result.lineRange}`));
+      }
+    }
+    console.log();
+  }
+}
+
+function getSeverityColor(severity) {
+  switch (severity?.toUpperCase()) {
+    case 'CRITICAL':
+      return chalk.red('🔴');
+    case 'HIGH':
+      return chalk.red('🟠');
+    case 'MEDIUM':
+      return chalk.yellow('🟡');
+    case 'LOW':
+      return chalk.green('🟢');
+    default:
+      return chalk.gray('⚪');
+  }
+}
+
+function getTypeIcon(type) {
+  switch (type?.toUpperCase()) {
+    case 'SECURITY':
+      return '🔒';
+    case 'ARCHITECTURE':
+      return '🏗️ ';
+    case 'MAINTAINABILITY':
+      return '📝';
+    default:
+      return '❓';
+  }
 }
 
 // Make sure the final line uses parseAsync

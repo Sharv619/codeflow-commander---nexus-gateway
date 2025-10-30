@@ -1,0 +1,62 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+dist/
+*.tsbuildinfo
+
+# Coverage
+coverage/
+*.lcov
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+winston.log*
+
+# Temporary files
+.tmp/
+temp/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Cache
+.cache/
+.lru-cache/
+
+# Config overrides
+.codeflowrc.json
+codeflow-config.local.json
+
+# Test artifacts
+tests/__test-results__/
+junit.xml
+
+# Lock files (keep one)
+package-lock.json
+
+# Documentation builds
+docs/build/

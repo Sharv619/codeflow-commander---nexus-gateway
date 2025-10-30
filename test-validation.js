@@ -8,7 +8,7 @@ async function testGeminiKeyForOpenAI() {
 
   try {
     const response = await axios.get('https://api.openai.com/v1/models', {
-      headers: { 'Authorization': `Bearer AIzaSyBIEmWx8lRqHveNgiPl3fokbGDdOMUwjms` }
+      headers: { 'Authorization': `Bearer ` }
     });
     console.log('❌ UNEXPECTED: API call succeeded when it should fail');
     console.log('Response status:', response.status);

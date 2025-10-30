@@ -1,14 +1,17 @@
-# Codeflow Hook - AI-Powered Git Hooks
+# Codeflow Hook - Advanced Local AI Agent for Code Review
 
-An interactive CI/CD simulator and lightweight pre-push code reviewer that uses Google Gemini AI to analyze your code changes before commits and pushes.
+An intelligent Local AI Agent that transforms your development workflow with Retrieval-Augmented Generation (RAG) architecture and specialized agentic code review. Uses Google Gemini AI to provide context-aware, multi-perspective code analysis.
 
 ## 🚀 Features
 
-- **AI Code Review**: Get intelligent code analysis powered by Gemini AI
-- **Automated Git Hooks**: Automatic pre-commit and pre-push checks
-- **CI/CD Simulation**: Simulates full pipeline including tests and security checks
-- **Easy Installation**: Simple CLI setup for any project
-- **Developer-Friendly**: Clear feedback with actionable suggestions
+- **🤖 Local AI Agent**: Advanced agentic workflow with specialized review agents
+- **🧠 RAG-Powered**: Context-aware analysis using project knowledge base
+- **🔍 Specialized Agents**: Security, Architecture, and Maintainability experts
+- **⚡ Sub-Second Retrieval**: Fast context retrieval from local vector store
+- **🔒 Local First**: Everything runs locally, APIs used only for AI inference
+- **📊 Structured Output**: Clear, scannable feedback grouped by issue type
+- **🔄 Automated Hooks**: Pre-commit and pre-push automation
+- **🎯 Laser-Focused**: Each agent specializes in specific concern areas
 
 ## 📦 Installation
 
@@ -65,7 +68,25 @@ This creates:
 - `pre-commit`: AI analysis of staged changes
 - `pre-push`: Full CI/CD simulation (tests + AI review)
 
-### 3. Check Status
+### 3. Index Project Knowledge (RAG Setup)
+
+Build a local knowledge base for context-aware analysis:
+
+```bash
+# Index current project files for RAG
+codeflow-hook index
+
+# Dry run to see what files would be indexed
+codeflow-hook index --dry-run
+```
+
+The knowledge base is stored in `.codeflow/index/` and includes:
+- README.md and documentation files
+- Source code files (.ts, .tsx, .js, .jsx, .json)
+- Configuration files (package.json, jest.config.*, etc.)
+- Architecture and design documents
+
+### 4. Check Status
 
 ```bash
 codeflow-hook status
@@ -73,24 +94,60 @@ codeflow-hook status
 
 ## 🛠️ Commands
 
-### Analyze Specific Changes
+### Core Commands
 
-Manually analyze a git diff:
-
+**Index Project Knowledge**:
 ```bash
-git diff --staged | codeflow-hook analyze-diff
+# Build local RAG knowledge base
+codeflow-hook index
+
+# Preview what will be indexed
+codeflow-hook index --dry-run
 ```
 
-### Reinstall Hooks
+**Analyze Diff**:
+```bash
+# Analyze staged changes
+git diff --staged | codeflow-hook analyze-diff
+
+# Disable RAG context (faster but less precise)
+git diff | codeflow-hook analyze-diff --no-rag
+
+# Use legacy monolithic analysis
+git diff | codeflow-hook analyze-diff --legacy
+```
+
+**Configuration & Setup**:
+```bash
+# Configure AI provider
+codeflow-hook config -p gemini -k YOUR_API_KEY
+
+# Install git hooks
+codeflow-hook install
+
+# Check installation status
+codeflow-hook status
+```
+
+### Advanced Options
 
 ```bash
+# Use legacy mode for backwards compatibility
+codeflow-hook analyze-diff --legacy
+
+# Skip RAG for faster analysis
+codeflow-hook analyze-diff --no-rag
+
+# Custom hooks directory
 codeflow-hook install --hooks-dir .custom-hooks
 ```
 
 ### View Help
 
 ```bash
-codeflow-hook --help
+codeflow-hook --help             # Main help
+codeflow-hook index --help      # Index command help
+codeflow-hook analyze-diff --help # Analysis options
 ```
 
 ## 🔄 How It Works
@@ -112,6 +169,61 @@ codeflow-hook --help
 - Performance optimization suggestions
 - Best practice recommendations
 - Maintainability evaluation
+
+## 🔬 Technology Overview
+
+### Retrieval-Augmented Generation (RAG)
+Codeflow Hook uses RAG to provide context-aware analysis:
+
+1. **Local Vector Store**: Project files are indexed and stored as embeddings in `.codeflow/index/`
+2. **Semantic Search**: When analyzing code changes, relevant context is retrieved using cosine similarity
+3. **Context-Augmented Prompts**: AI agents receive both the code changes AND relevant project context
+4. **Sub-Second Retrieval**: Fast local search ensures no delay in development workflow
+
+### Agentic Workflow Architecture
+Instead of one monolithic AI prompt, Codeflow uses specialized agents:
+
+**🔒 Security Agent**:
+- SQL injection, XSS, CSRF detection
+- Credential exposure monitoring
+- Insecure dependency analysis
+- Authentication bypass prevention
+
+**🏗️ Architecture Agent**:
+- Design pattern violations
+- Separation of concerns breaches
+- Cyclomatic complexity analysis
+- Data access pattern evaluation
+
+**📝 Maintainability Agent**:
+- Code documentation quality
+- Naming convention consistency
+- JSDoc/TypeScript annotation completeness
+- Long parameter list detection
+- Magic number identification
+
+### Benefits
+- **Precision**: Each agent specializes in specific concerns
+- **Efficiency**: Parallel execution of specialized reviews
+- **Context**: RAG provides project-specific context
+- **Speed**: Local vector store enables fast retrieval
+- **Scalability**: Agent architecture supports future specialization
+
+### Structured Output Format
+Results are grouped by concern type and severity:
+
+```
+📊 Code Review Summary:
+   🔒 Security issues: 0
+   🏗️  Architecture issues: 1
+   📝 Maintainability issues: 2
+
+📁 server.js (function)
+   🏗️ HIGH: Large function exceeds 50 lines
+      Line: 15-67
+   📝 MEDIUM: Missing JSDoc for public function
+      Line: 25-35
+```
 
 ## 💡 Usage Examples
 
