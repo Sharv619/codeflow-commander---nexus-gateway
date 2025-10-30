@@ -64,51 +64,38 @@ program
 
     // Interactive model selection if model is not explicitly provided via CLI option
     if (!options.model) {
+      const modelSpinner = ora('Fetching available models...').start();
       try {
-        switch (config.provider) {
-          case 'gemini':
-            const geminiModels = ['gemini-1.5-pro-latest', 'gemini-1.5-flash-latest', 'gemini-pro'];
-            const geminiRl = readline.createInterface({
-              input: process.stdin,
-              output: process.stdout
-            });
-            config.model = await new Promise(resolve => {
-              geminiRl.question(chalk.blue(`Select a Gemini model (${geminiModels.join(', ')}): `), (model) => {
-                geminiRl.close();
-                resolve(model || config.model); // Use input or current model if empty
-              });
-            });
-            break;
-          case 'openai':
-            const openaiModels = ['gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo'];
-            const openaiRl = readline.createInterface({
-              input: process.stdin,
-              output: process.stdout
-            });
-            config.model = await new Promise(resolve => {
-              openaiRl.question(chalk.blue(`Select an OpenAI model (${openaiModels.join(', ')}): `), (model) => {
-                openaiRl.close();
-                resolve(model || config.model);
-              });
-            });
-            break;
-          case 'claude':
-            const claudeModels = ['claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'];
-            const claudeRl = readline.createInterface({
-              input: process.stdin,
-              output: process.stdout
-            });
-            config.model = await new Promise(resolve => {
-              claudeRl.question(chalk.blue(`Select a Claude model (${claudeModels.join(', ')}): `), (model) => {
-                claudeRl.close();
-                resolve(model || config.model);
-              });
-            });
-            break;
-        }
+        const models = await fetchModels(config.provider, config.apiKey);
+        modelSpinner.succeed('Models fetched');
+
+        const rl = readline.createInterface({
+          input: process.stdin,
+          output: process.stdout
+        });
+
+        config.model = await new Promise(resolve => {
+          rl.question(chalk.blue(`Select a model (${models.join(', ')}): `), (model) => {
+            rl.close();
+            resolve(model || config.model); // Use input or current model if empty
+          });
+        });
+
       } catch (error) {
-        console.error(chalk.red(`Error selecting model: ${error.message}`));
-        process.exit(1); // Exit if model selection fails
+        modelSpinner.fail('Failed to fetch models');
+        console.error(chalk.red(`Error: ${error.message}`));
+        // Fallback to hardcoded list if API call fails
+        const fallbackModels = getFallbackModels(config.provider);
+        const rl = readline.createInterface({
+          input: process.stdin,
+          output: process.stdout
+        });
+        config.model = await new Promise(resolve => {
+          rl.question(chalk.blue(`Could not fetch models. Select a fallback model (${fallbackModels.join(', ')}): `), (model) => {
+            rl.close();
+            resolve(model || config.model);
+          });
+        });
       }
     }
 
@@ -274,6 +261,37 @@ program
       console.log(chalk.red('❌ Git Hook (pre-push): Not installed'));
     }
   });
+
+async function fetchModels(provider, apiKey) {
+  switch (provider) {
+    case 'gemini':
+      const geminiResponse = await axios.get(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+      return geminiResponse.data.models.map(m => m.name.replace('models/', ''));
+    case 'openai':
+      const openaiResponse = await axios.get('https://api.openai.com/v1/models', {
+        headers: { 'Authorization': `Bearer ${apiKey}` }
+      });
+      return openaiResponse.data.data.map(m => m.id);
+    case 'claude':
+      console.log(chalk.yellow("Claude does not support dynamic model fetching. Using a standard list."));
+      return getFallbackModels('claude');
+    default:
+      return [];
+  }
+}
+
+function getFallbackModels(provider) {
+  switch (provider) {
+    case 'gemini':
+      return ['gemini-1.5-pro-latest', 'gemini-1.5-flash-latest', 'gemini-pro'];
+    case 'openai':
+      return ['gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo'];
+    case 'claude':
+      return ['claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'];
+    default:
+      return [];
+  }
+}
 
 function generateCodeReviewPrompt(diff) {
   return `You are "Codeflow", a world-class AI software engineering assistant acting as a Principal Engineer. Your mission is to perform a rigorous and constructive code review on the provided code changes.
