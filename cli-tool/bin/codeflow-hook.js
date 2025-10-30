@@ -33,30 +33,38 @@ program
     const configPath = path.join(configDir, 'config.json');
     const existingConfig = fs.existsSync(configPath) ? JSON.parse(fs.readFileSync(configPath, 'utf8')) : {};
 
-    // Normalize provider name to lowercase for consistency
-    const normalizedProvider = (options.provider || existingConfig.provider || 'gemini').toLowerCase();
+    // Determine what the new provider and API key should be
+    const requestedProvider = (options.provider || existingConfig.provider || 'gemini').toLowerCase();
+    const requestedApiKey = options.key || existingConfig.apiKey;
 
-    // Initialize config with existing values, then override with CLI options
+    // Validate API key first if a new key is provided or provider is being changed
+    const shouldValidate = options.key || (!existingConfig.provider && !existingConfig.apiKey);
+
+    if (shouldValidate && requestedApiKey) {
+      console.log(chalk.blue('🔐 Validating API key for provider:', requestedProvider));
+      const validationSpinner = ora('Checking key permissions...').start();
+
+      console.log('Debug: Provider:', requestedProvider);
+      console.log('Debug: ApiKey:', requestedApiKey.substring(0, 10) + '...');
+
+      try {
+        await validateApiKey(requestedProvider, requestedApiKey);
+        validationSpinner.succeed('API key validated');
+      } catch (error) {
+        validationSpinner.fail('Validation failed');
+        console.error(chalk.red(`❌ ${error.message}`));
+        console.error(chalk.red(`💡 Make sure you're using a valid ${requestedProvider.toUpperCase()} API key for the ${requestedProvider} provider.`));
+        process.exit(1);
+      }
+    }
+
+    // Initialize config with existing values, then override with verified CLI options
     const config = {
-      provider: normalizedProvider,
-      apiKey: options.key || existingConfig.apiKey,
+      provider: requestedProvider,
+      apiKey: requestedApiKey,
       apiUrl: options.url || existingConfig.apiUrl,
       model: options.model || existingConfig.model
     };
-
-    // Always validate API key if a new key is provided or provider is changed
-    const shouldValidate = options.key || (existingConfig.provider && existingConfig.provider.toLowerCase() !== normalizedProvider);
-
-    if (shouldValidate) {
-      console.log(chalk.blue('🔐 Validating API key for provider:', config.provider));
-      const validationSpinner = ora('Checking key permissions...').start();
-
-      console.log('Debug: Provider:', config.provider);
-      console.log('Debug: ApiKey length:', config.apiKey ? config.apiKey.length : 'undefined');
-
-      await validateApiKey(config.provider, config.apiKey);
-      validationSpinner.succeed('API key validated');
-    }
 
     // Interactive model selection if model is not explicitly provided
     if (!options.model) {
