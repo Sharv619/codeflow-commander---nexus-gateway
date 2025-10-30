@@ -41,6 +41,20 @@ program
       model: options.model || existingConfig.model
     };
 
+    // Validate API key first
+    console.log(chalk.blue('🔐 Validating API key...'));
+    const validationSpinner = ora('Checking key permissions...').start();
+
+    try {
+      await validateApiKey(config.provider, config.apiKey);
+      validationSpinner.succeed('API key validated');
+    } catch (error) {
+      validationSpinner.fail('Invalid API key');
+      console.error(chalk.red(`❌ ${error.message}`));
+      console.error(chalk.red(`💡 Make sure you're using a valid ${config.provider.toUpperCase()} API key for the ${config.provider} provider.`));
+      process.exit(1);
+    }
+
     // Interactive model selection if model is not explicitly provided via CLI option or if no existing config
     if (!options.model && (!existingConfig.model || !existingConfig.provider)) {
       console.log(chalk.blue('🔍 No model specified or no previous configuration found.'));
@@ -298,6 +312,60 @@ program
       console.log(chalk.red('❌ Git Hook (pre-push): Not installed'));
     }
   });
+
+async function validateApiKey(provider, apiKey) {
+  if (!apiKey) {
+    throw new Error('No API key provided');
+  }
+
+  try {
+    switch (provider) {
+      case 'gemini':
+        // Test Gemini API key by making a simple models list request
+        await axios.get(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+        break;
+      case 'openai':
+        // Test OpenAI API key by making a simple models list request
+        await axios.get('https://api.openai.com/v1/models', {
+          headers: { 'Authorization': `Bearer ${apiKey}` }
+        });
+        break;
+      case 'claude':
+        // Test Claude API key with a minimal request (Anthropic doesn't have models endpoint, so we use a very basic check)
+        try {
+          await axios.post('https://api.anthropic.com/v1/messages', {
+            model: 'claude-3-haiku-20240307',
+            max_tokens: 1,
+            messages: [{ role: 'user', content: 'Test' }]
+          }, {
+            headers: {
+              'x-api-key': apiKey,
+              'anthropic-version': '2023-06-01',
+              'Content-Type': 'application/json'
+            }
+          });
+        } catch (claudeError) {
+          if (claudeError.response?.status === 401) {
+            throw new Error('Invalid Claude API key');
+          }
+          // If it's a different error (like rate limit), we'll allow it through
+        }
+        break;
+      default:
+        throw new Error(`Unsupported provider: ${provider}`);
+    }
+  } catch (error) {
+    if (error.response?.status === 401) {
+      throw new Error(`Invalid ${provider} API key`);
+    } else if (error.response?.status === 403) {
+      throw new Error(`API key lacks permissions for ${provider}`);
+    } else if (error.response?.status === 429) {
+      throw new Error(`API rate limit exceeded. Please try again later.`);
+    } else {
+      throw new Error(`${provider} API is currently unavailable: ${error.message}`);
+    }
+  }
+}
 
 async function fetchModels(provider, apiKey) {
   switch (provider) {
