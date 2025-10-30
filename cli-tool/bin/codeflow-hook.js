@@ -41,93 +41,100 @@ program
       model: options.model || existingConfig.model
     };
 
-    // Validate API key first
-    console.log(chalk.blue('🔐 Validating API key...'));
-    const validationSpinner = ora('Checking key permissions...').start();
+    // Validate API key first - always validate when changing providers or providing new key
+    if (options.key || (existingConfig.provider !== config.provider)) {
+      console.log(chalk.blue('🔐 Validating API key...'));
+      const validationSpinner = ora('Checking key permissions...').start();
 
-    try {
-      await validateApiKey(config.provider, config.apiKey);
-      validationSpinner.succeed('API key validated');
-    } catch (error) {
-      validationSpinner.fail('Invalid API key');
-      console.error(chalk.red(`❌ ${error.message}`));
-      console.error(chalk.red(`💡 Make sure you're using a valid ${config.provider.toUpperCase()} API key for the ${config.provider} provider.`));
-      process.exit(1);
+      try {
+        await validateApiKey(config.provider, config.apiKey);
+        validationSpinner.succeed('API key validated');
+      } catch (error) {
+        validationSpinner.fail('Invalid API key');
+        console.error(chalk.red(`❌ ${error.message}`));
+        console.error(chalk.red(`💡 Make sure you're using a valid ${config.provider.toUpperCase()} API key for the ${config.provider} provider.`));
+        process.exit(1);
+      }
     }
 
-    // Interactive model selection if model is not explicitly provided via CLI option or if no existing config
-    if (!options.model && (!existingConfig.model || !existingConfig.provider)) {
-      console.log(chalk.blue('🔍 No model specified or no previous configuration found.'));
-      console.log(chalk.blue('📡 Fetching available models...'));
+    // Interactive model selection if model is not explicitly provided
+    if (!options.model) {
+      // Check if we should fetch models interactively
+      const shouldFetchModels = !existingConfig.model ||
+                               existingConfig.provider !== config.provider ||
+                               options.key; // New key provided
 
-      const modelSpinner = ora('Contacting API...').start();
-      try {
-        const models = await fetchModels(config.provider, config.apiKey);
-        modelSpinner.succeed('Models fetched successfully');
+      if (shouldFetchModels) {
+        console.log(chalk.blue('🔍 Fetching available models...'));
 
-        console.log(chalk.blue('Available models:'));
-        models.forEach((model, index) => {
-          console.log(chalk.gray(`  ${index + 1}. ${model}`));
-        });
+        const modelSpinner = ora('Contacting API...').start();
+        try {
+          const models = await fetchModels(config.provider, config.apiKey);
+          modelSpinner.succeed('Models fetched successfully');
 
-        const rl = readline.createInterface({
-          input: process.stdin,
-          output: process.stdout
-        });
-
-        const selectedModel = await new Promise(resolve => {
-          rl.question(chalk.blue(`Enter the model name (or number): `), (input) => {
-            rl.close();
-            resolve(input.trim());
+          console.log(chalk.blue('Available models:'));
+          models.forEach((model, index) => {
+            console.log(chalk.gray(`  ${index + 1}. ${model}`));
           });
-        });
 
-        // Check if user entered a number
-        const index = parseInt(selectedModel) - 1;
-        if (!isNaN(index) && index >= 0 && index < models.length) {
-          config.model = models[index];
-        } else {
-          config.model = selectedModel;
-        }
-
-        console.log(chalk.green(`✓ Selected model: ${config.model}`));
-
-      } catch (error) {
-        modelSpinner.fail('Failed to fetch models');
-        console.error(chalk.red(`❌ API Error: ${error.message}`));
-        // Fallback to hardcoded list if API call fails
-        const fallbackModels = getFallbackModels(config.provider);
-
-        console.log(chalk.yellow('⚠️ Using fallback model list:'));
-        fallbackModels.forEach((model, index) => {
-          console.log(chalk.gray(`  ${index + 1}. ${model}`));
-        });
-
-        const rl = readline.createInterface({
-          input: process.stdin,
-          output: process.stdout
-        });
-
-        const selectedModel = await new Promise(resolve => {
-          rl.question(chalk.blue(`Select a model (name or number): `), (input) => {
-            rl.close();
-            resolve(input.trim());
+          const rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout
           });
-        });
 
-        const index = parseInt(selectedModel) - 1;
-        if (!isNaN(index) && index >= 0 && index < fallbackModels.length) {
-          config.model = fallbackModels[index];
-        } else {
-          config.model = selectedModel;
+          const selectedModel = await new Promise(resolve => {
+            rl.question(chalk.blue(`Enter the model name (or number): `), (input) => {
+              rl.close();
+              resolve(input.trim());
+            });
+          });
+
+          // Check if user entered a number
+          const index = parseInt(selectedModel) - 1;
+          if (!isNaN(index) && index >= 0 && index < models.length) {
+            config.model = models[index];
+          } else {
+            config.model = selectedModel;
+          }
+
+          console.log(chalk.green(`✓ Selected model: ${config.model}`));
+
+        } catch (error) {
+          modelSpinner.fail('Failed to fetch models');
+          console.error(chalk.red(`❌ API Error: ${error.message}`));
+          // Fallback to hardcoded list if API call fails
+          const fallbackModels = getFallbackModels(config.provider);
+
+          console.log(chalk.yellow('⚠️ Using fallback model list:'));
+          fallbackModels.forEach((model, index) => {
+            console.log(chalk.gray(`  ${index + 1}. ${model}`));
+          });
+
+          const rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout
+          });
+
+          const selectedModel = await new Promise(resolve => {
+            rl.question(chalk.blue(`Select a model (name or number): `), (input) => {
+              rl.close();
+              resolve(input.trim());
+            });
+          });
+
+          const index = parseInt(selectedModel) - 1;
+          if (!isNaN(index) && index >= 0 && index < fallbackModels.length) {
+            config.model = fallbackModels[index];
+          } else {
+            config.model = selectedModel;
+          }
+
+          console.log(chalk.green(`✓ Selected fallback model: ${config.model}`));
         }
-
-        console.log(chalk.green(`✓ Selected fallback model: ${config.model}`));
+      } else {
+        // Reuse existing model and config
+        console.log(chalk.blue(`📚 Using existing configuration (provider: ${existingConfig.provider}, model: ${existingConfig.model})`));
       }
-    } else if (!options.model && existingConfig.model && existingConfig.provider) {
-      // Keep existing model if user didn't specify one but has existing config
-      config.model = existingConfig.model;
-      console.log(chalk.blue(`📚 Using existing model: ${config.model}`));
     } else {
       // User explicitly provided model
       console.log(chalk.green(`✓ Using specified model: ${config.model}`));
