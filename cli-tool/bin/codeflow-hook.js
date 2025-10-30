@@ -33,28 +33,29 @@ program
     const configPath = path.join(configDir, 'config.json');
     const existingConfig = fs.existsSync(configPath) ? JSON.parse(fs.readFileSync(configPath, 'utf8')) : {};
 
+    // Normalize provider name to lowercase for consistency
+    const normalizedProvider = (options.provider || existingConfig.provider || 'gemini').toLowerCase();
+
     // Initialize config with existing values, then override with CLI options
     const config = {
-      provider: options.provider || existingConfig.provider || 'gemini',
+      provider: normalizedProvider,
       apiKey: options.key || existingConfig.apiKey,
       apiUrl: options.url || existingConfig.apiUrl,
       model: options.model || existingConfig.model
     };
 
-    // Validate API key first - always validate when changing providers or providing new key
-    if (options.key || (existingConfig.provider && existingConfig.provider.toLowerCase() !== config.provider.toLowerCase())) {
-      console.log(chalk.blue('🔐 Validating API key...'));
+    // Always validate API key if a new key is provided or provider is changed
+    const shouldValidate = options.key || (existingConfig.provider && existingConfig.provider.toLowerCase() !== normalizedProvider);
+
+    if (shouldValidate) {
+      console.log(chalk.blue('🔐 Validating API key for provider:', config.provider));
       const validationSpinner = ora('Checking key permissions...').start();
 
-      try {
-        await validateApiKey(config.provider, config.apiKey);
-        validationSpinner.succeed('API key validated');
-      } catch (error) {
-        validationSpinner.fail('Invalid API key');
-        console.error(chalk.red(`❌ ${error.message}`));
-        console.error(chalk.red(`💡 Make sure you're using a valid ${config.provider.toUpperCase()} API key for the ${config.provider} provider.`));
-        process.exit(1);
-      }
+      console.log('Debug: Provider:', config.provider);
+      console.log('Debug: ApiKey length:', config.apiKey ? config.apiKey.length : 'undefined');
+
+      await validateApiKey(config.provider, config.apiKey);
+      validationSpinner.succeed('API key validated');
     }
 
     // Interactive model selection if model is not explicitly provided
