@@ -42,7 +42,7 @@ program
     };
 
     // Validate API key first - always validate when changing providers or providing new key
-    if (options.key || (existingConfig.provider !== config.provider)) {
+    if (options.key || (existingConfig.provider && existingConfig.provider.toLowerCase() !== config.provider.toLowerCase())) {
       console.log(chalk.blue('🔐 Validating API key...'));
       const validationSpinner = ora('Checking key permissions...').start();
 
@@ -61,7 +61,7 @@ program
     if (!options.model) {
       // Check if we should fetch models interactively
       const shouldFetchModels = !existingConfig.model ||
-                               existingConfig.provider !== config.provider ||
+                               (existingConfig.provider && existingConfig.provider.toLowerCase() !== config.provider.toLowerCase()) ||
                                options.key; // New key provided
 
       if (shouldFetchModels) {
