@@ -316,9 +316,7 @@ program
     console.log();
 
     // Check configuration cascade
-    // Use USERPROFILE on Windows instead of HOME which might be undefined
-    const homeDir = process.env.HOME || process.env.USERPROFILE;
-    const globalConfigPath = path.join(homeDir, '.codeflow-hook', 'config.json');
+    const globalConfigPath = path.join(os.homedir(), '.codeflow-hook', 'config.json');
     const projectConfigPath = path.join(process.cwd(), '.codeflowrc.json');
 
     const hasGlobalConfig = fs.existsSync(globalConfigPath);
@@ -382,7 +380,6 @@ async function validateApiKey(provider, apiKey) {
         console.log(`DEBUG: Gemini API call succeeded`);
         break;
       case 'openai':
-        // Test OpenAI API key by making a simple models list request
         const openaiUrl = 'https://api.openai.com/v1/models';
         console.log(`DEBUG: OpenAI URL: ${openaiUrl} with Bearer token`);
         await axios.get(openaiUrl, {
