@@ -931,6 +931,8 @@ type DependencyEdgeType =
   | 'shared_library'
   | 'microservice_communication';
 
+export { DependencyEdgeType };
+
 interface VulnerabilityAssessment {
   id: string;
   severity: string;
