@@ -198,6 +198,55 @@ export interface DeveloperFeedback {
 }
 
 /**
+ * AgentExecutionResult - Result of agent execution within autonomous networks
+ * Tracks performance, reasoning, and outcomes of agent interactions
+ */
+export interface AgentExecutionResult {
+  executionId: string;
+  agentId: string;
+  status: 'completed' | 'failed' | 'cancelled' | 'timeout';
+  confidence: ConfidenceScore;
+  actionsPerformed: Array<{
+    type: string;
+    description: string;
+    timestamp: Date;
+    success: boolean;
+  }>;
+  metrics: {
+    duration: number; // milliseconds
+    tokens: number;
+    cost: number;
+    memoryUsage: number;
+  };
+  reasoning: {
+    strategy: string;
+    considerations: string[];
+    decisionFactors: Record<string, any>;
+  };
+  artifacts: {
+    generatedCode?: string;
+    suggestions?: CodeSuggestion[];
+    logs: string[];
+    metadata: Record<string, any>;
+  };
+  evaluation: {
+    qualityScore: number;
+    efficiencyScore: number;
+    safetyScore: number;
+    recommendations: string[];
+  };
+  timestamp: Date;
+  context: AgentExecutionContext;
+}
+
+interface AgentExecutionContext {
+  sessionId: string;
+  projectId: string;
+  trigger: string;
+  environment: Record<string, any>;
+}
+
+/**
  * ProjectKnowledge - Persistent project intelligence store
  * Implements VECTOR knowledge base with learning from team interactions
  * Core of PRISM project intelligence system
@@ -536,6 +585,38 @@ interface TestFile { name: string; content: string; type: 'unit' | 'integration'
 interface DependencyChange { name: string; oldVersion?: string; newVersion?: string; impact: string; }
 interface CompatibilityAssessment { compatible: boolean; issues: string[]; severity: SuggestionSeverity; fix: string; }
 interface CodeExample { file: string; lines: number[]; description: string; }
+
+/**
+ * CodeEntity - Represents code constructs identified by PRISM analysis
+ */
+export interface CodeEntity {
+  id: string;
+  type: 'function' | 'class' | 'interface' | 'variable' | 'method' | 'property';
+  name: string;
+  filePath: string;
+  lineStart: number;
+  lineEnd: number;
+  signature?: string;
+  dependencies: string[];
+  complexity?: number;
+  metadata: Record<string, any>;
+}
+
+/**
+ * ArchitecturePattern - Represents architectural patterns identified in codebases
+ */
+export interface ArchitecturePattern {
+  id: string;
+  name: string;
+  type: 'structural' | 'behavioral' | 'creational';
+  description: string;
+  components: string[];
+  relationships: string[];
+  benefits: string[];
+  drawbacks: string[];
+  whenToUse: string[];
+  examples: string[];
+}
 
 // ============================================================================
 // PHASE 4: ENTERPRISE KNOWLEDGE GRAPH DATA MODELS

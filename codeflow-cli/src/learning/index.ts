@@ -13,7 +13,7 @@ import {
  * Feedback Learning Engine
  * Analyzes developer feedback to improve future suggestions
  */
-export class FeedbackLearningEngine {
+class FeedbackLearningEngine {
   private logger: Logger;
   private feedbackHistory: DeveloperFeedback[] = [];
   private learningPatterns: Map<string, LearningPattern> = new Map();
@@ -457,8 +457,8 @@ export class FeedbackLearningEngine {
   private generateRejectionInsights(reason: string, feedback: DeveloperFeedback): string[] {
     const insights: string[] = [];
 
-    if (reason === 'wrong' && feedback.problematicalAspects) {
-      insights.push(`Focus area: ${feedback.problematicalAspects.join(', ')}`);
+    if (reason === 'wrong' && feedback.problematicAspects) {
+      insights.push(`Focus area: ${feedback.problematicAspects.join(', ')}`);
     }
 
     if (reason === 'incomplete') {
@@ -475,9 +475,9 @@ export class FeedbackLearningEngine {
  * Behavior Adaptation Engine
  * Dynamically adjusts system behavior based on learned patterns
  */
-export class BehaviorAdaptationEngine {
+class BehaviorAdaptationEngine {
   private logger: Logger;
-  private adaptationRules: Map<string, AdaptationRule> = new Map();
+  private adaptationRules: Map<string, AdaptationResult> = new Map();
   private activeAdaptations: Map<string, ActiveAdaptation> = new Map();
 
   constructor(logger?: Logger) {

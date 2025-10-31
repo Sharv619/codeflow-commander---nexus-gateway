@@ -1,10 +1,11 @@
+// File: src/services/ekg.ts
 // Enterprise Knowledge Graph (EKG) service for Phase 4
 // Implements organization-wide intelligence with distributed graph capabilities
 // Evolves VECTOR into enterprise-scale knowledge management
 
-import { Logger, defaultLogger } from '@/utils/logger';
-import { ErrorHandler } from '@/validation';
-import { StorageManager } from '@/storage';
+import { Logger, defaultLogger } from '../utils/logger';
+import { ErrorHandler } from '../validation';
+import { StorageManager } from '../storage';
 import {
   RepositoryNode,
   DependencyEdge,
@@ -12,11 +13,8 @@ import {
   OrganizationStandards,
   TechnicalDebtForecast,
   PerformanceAnomaly,
-  DependencyEdgeType
-} from '@/types/entities';
-import fs from 'fs';
-import path from 'path';
-import crypto from 'crypto';
+  DependencyEdgeType // FIX: Import the missing type
+} from '../types/entities';
 
 // Local type definitions for metrics (would be expanded in full implementation)
 interface RepositoryMetrics {
@@ -98,7 +96,7 @@ export class EnterpriseKnowledgeGraph {
       await this.warmCache();
 
       this.logger.info('EKG initialization completed');
-    } catch (error) {
+    } catch (error: unknown) {
       this.errorHandler.handleError(error, { operation: 'initialize' });
       throw error;
     }
@@ -133,7 +131,7 @@ export class EnterpriseKnowledgeGraph {
       await this.storeGraphNode(repoNode);
       await this.buildRepositoryRelationships(repository);
 
-    } catch (error) {
+    } catch (error: unknown) {
       this.errorHandler.handleError(error, { operation: 'addRepository', repoId: repository.id });
       throw error;
     }
@@ -170,7 +168,7 @@ export class EnterpriseKnowledgeGraph {
       // Update repository relationships
       await this.updateRepositoryDependencies(edge);
 
-    } catch (error) {
+    } catch (error: unknown) {
       this.errorHandler.handleError(error, { operation: 'addDependency', edgeId: edge.id });
       throw error;
     }
@@ -205,7 +203,7 @@ export class EnterpriseKnowledgeGraph {
 
       this.logger.debug('Knowledge pattern added to EKG', { patternId: pattern.id });
 
-    } catch (error) {
+    } catch (error: unknown) {
       this.errorHandler.handleError(error, { operation: 'addKnowledgePattern', patternId: pattern.id });
       throw error;
     }
@@ -241,7 +239,7 @@ export class EnterpriseKnowledgeGraph {
         anomalies
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       this.errorHandler.handleError(error, { operation: 'getRepositoryIntelligence', repositoryId });
       throw error;
     }
@@ -282,7 +280,7 @@ export class EnterpriseKnowledgeGraph {
         architecturalOpportunities
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       this.errorHandler.handleError(error, { operation: 'analyzeCrossRepositoryPatterns' });
       throw error;
     }
@@ -325,7 +323,7 @@ export class EnterpriseKnowledgeGraph {
         similar: similar.slice(0, limit)
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       this.errorHandler.handleError(error, { operation: 'findSimilarRepositories', repositoryId });
       throw error;
     }
@@ -361,7 +359,7 @@ export class EnterpriseKnowledgeGraph {
 
       this.logger.debug('Repository metrics updated', { repositoryId });
 
-    } catch (error) {
+    } catch (error: unknown) {
       this.errorHandler.handleError(error, { operation: 'updateRepositoryMetrics', repositoryId });
       throw error;
     }
@@ -384,10 +382,11 @@ export class EnterpriseKnowledgeGraph {
     this.edges.set(edge.id, edge);
 
     // Add to adjacency list for graph traversal
-    if (!this.adjacencyList.has(edge.sourceId)) {
-      this.adjacencyList.set(edge.sourceId, new Set());
+    if (this.adjacencyList.has(edge.sourceId)) {
+        this.adjacencyList.get(edge.sourceId)!.add(edge);
+    } else {
+        this.adjacencyList.set(edge.sourceId, new Set([edge]));
     }
-    this.adjacencyList.get(edge.sourceId)!.add(edge);
 
     // Persist to storage layer
     await this.storageManager.storeMetadata('ekg', `edge_${edge.id}`, edge);
@@ -398,8 +397,9 @@ export class EnterpriseKnowledgeGraph {
 
     if (!node) {
       // Try to load from storage
-      node = await this.storageManager.getMetadata('ekg', `node_${nodeId}`);
-      if (node) {
+      const loadedNode = await this.storageManager.getMetadata('ekg', `node_${nodeId}`);
+      if (loadedNode) {
+        node = loadedNode as GraphNode; // Type assertion
         this.nodes.set(nodeId, node);
       }
     }
@@ -455,20 +455,27 @@ export class EnterpriseKnowledgeGraph {
   }
 
   private calculateSimilarity(vecA?: number[], vecB?: number[]): number {
-    if (!vecA || !vecB) return 0;
+    if (!vecA || !vecB || vecA.length !== vecB.length) return 0;
+
+    // Safety: vecA and vecB are guaranteed to be arrays at this point
+    const a: number[] = vecA as number[];
+    const b: number[] = vecB as number[];
 
     // Cosine similarity calculation
     let dotProduct = 0;
     let normA = 0;
     let normB = 0;
 
-    for (let i = 0; i < vecA.length; i++) {
-      dotProduct += vecA[i] * vecB[i];
-      normA += vecA[i] * vecA[i];
-      normB += vecB[i] * vecB[i];
+    for (let i = 0; i < a.length; i++) {
+      const aVal = a[i] ?? 0;
+      const bVal = b[i] ?? 0;
+      dotProduct += aVal * bVal;
+      normA += aVal * aVal;
+      normB += bVal * bVal;
     }
 
-    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+    const denominator = Math.sqrt(normA) * Math.sqrt(normB);
+    return denominator === 0 ? 0 : dotProduct / denominator;
   }
 
   private getSimilarityReasons(propsA: any, propsB: any): string[] {
@@ -480,16 +487,24 @@ export class EnterpriseKnowledgeGraph {
     }
 
     // Size similarity
-    const sizeDiff = Math.abs(propsA.size - propsB.size) / Math.max(propsA.size, propsB.size);
-    if (sizeDiff < 0.5) {
-      reasons.push(`Similar repository size`);
+    const sizeA = propsA.size || 0;
+    const sizeB = propsB.size || 0;
+    if (Math.max(sizeA, sizeB) > 0) {
+        const sizeDiff = Math.abs(sizeA - sizeB) / Math.max(sizeA, sizeB);
+        if (sizeDiff < 0.5) {
+          reasons.push(`Similar repository size`);
+        }
     }
+
 
     // Activity pattern similarity
     const activityA = propsA.activityMetrics;
     const activityB = propsB.activityMetrics;
-    if (activityA && activityB && Math.abs(activityA.commitsLastWeek - activityB.commitsLastWeek) < 10) {
-      reasons.push(`Similar activity levels`);
+    // FIX: Add null checks for activityA and activityB
+    if (activityA && activityB && activityA.commitsLastWeek !== undefined && activityB.commitsLastWeek !== undefined) {
+        if (Math.abs(activityA.commitsLastWeek - activityB.commitsLastWeek) < 10) {
+            reasons.push(`Similar activity levels`);
+        }
     }
 
     return reasons;
@@ -551,19 +566,21 @@ export class EnterpriseKnowledgeGraph {
 
   private async buildRepositoryRelationships(repo: RepositoryNode): Promise<void> {
     // Create organization relationship
-    const orgEdge: GraphEdge = {
-      id: `org-${repo.organizationId}-${repo.id}`,
-      sourceId: repo.organizationId,
-      targetId: repo.id,
-      type: 'belongs_to',
-      properties: {
-        role: 'member',
-        joinedAt: repo.temporalData.createdAt,
-        isPrivate: repo.metadata.isPrivate
-      }
-    };
+    if (repo.organizationId) {
+        const orgEdge: GraphEdge = {
+          id: `org-${repo.organizationId}-${repo.id}`,
+          sourceId: repo.organizationId,
+          targetId: repo.id,
+          type: 'belongs_to',
+          properties: {
+            role: 'member',
+            joinedAt: repo.temporalData.createdAt,
+            isPrivate: repo.metadata.isPrivate
+          }
+        };
+        await this.storeGraphEdge(orgEdge);
+    }
 
-    await this.storeGraphEdge(orgEdge);
 
     // Create team ownership relationships
     for (const teamId of repo.relationships.teamOwnership) {
@@ -657,13 +674,11 @@ export class EnterpriseKnowledgeGraph {
 
   private async getRepositoryTechnicalDebt(repoId: string): Promise<TechnicalDebtForecast[]> {
     // For Phase 4A, return empty array - would be populated by predictive intelligence engine
-    // In full implementation, would query predictive forecasts from storage
     return [];
   }
 
   private async getRepositoryAnomalies(repoId: string): Promise<PerformanceAnomaly[]> {
     // For Phase 4A, return empty array - would be populated by predictive intelligence engine
-    // In full implementation, would query anomaly data from storage
     return [];
   }
 
@@ -672,13 +687,11 @@ export class EnterpriseKnowledgeGraph {
   private async scanExistingRepositories(): Promise<Array<{ path: string, repoId: string }>> {
     const existingRepos: Array<{ path: string, repoId: string }> = [];
 
-    // Scan for .codeflow directories indicating existing Phase 2/3 installations
+    // Scan for .codeflow directories
     const fs = require('fs').promises;
     const path = require('path');
-
-    // Start from current directory and scan upwards
     let currentDir = process.cwd();
-    const maxDepth = 3;
+    const maxDepth = 5;
 
     for (let depth = 0; depth < maxDepth && currentDir !== '/'; depth++) {
       try {
@@ -689,15 +702,15 @@ export class EnterpriseKnowledgeGraph {
           const stat = await fs.stat(fullPath);
 
           if (stat.isDirectory() && item === '.codeflow') {
-            const repoId = this.generateRepoId(path.dirname(fullPath));
-            existingRepos.push({
-              path: path.dirname(fullPath),
-              repoId
-            });
+            const repoPath = path.dirname(fullPath);
+            const repoId = this.generateRepoId(repoPath);
+            if (!existingRepos.some(r => r.repoId === repoId)) {
+                existingRepos.push({ path: repoPath, repoId });
+            }
           }
         }
       } catch (error) {
-        // Skip directories we can't access
+        // Ignore errors
       }
 
       currentDir = path.dirname(currentDir);
@@ -708,43 +721,33 @@ export class EnterpriseKnowledgeGraph {
   }
 
   private async loadExistingProjectKnowledge(): Promise<void> {
-    // Load existing ProjectKnowledge entities from VECTOR stores
     const existingRepos = await this.scanExistingRepositories();
 
     for (const { path: repoPath, repoId } of existingRepos) {
       try {
-        // Try to load existing ProjectKnowledge from .codeflow directory
         const knowledgePath = require('path').join(repoPath, '.codeflow', 'knowledge.json');
 
         if (require('fs').existsSync(knowledgePath)) {
           const knowledgeData = JSON.parse(require('fs').readFileSync(knowledgePath, 'utf8'));
-
-          // Convert to RepositoryNode and add to graph
           const repository = this.knowledgeToRepository(knowledgeData, repoId, repoPath);
           await this.addRepository(repository);
-
           this.logger.debug(`Migrated repository: ${repoId}`);
         }
-      } catch (error) {
+      } catch (error: unknown) {
         this.errorHandler.handleError(error, { operation: 'loadExistingProjectKnowledge', repoId });
       }
     }
   }
 
   private async convertVectorToEkg(): Promise<void> {
-    // Convert existing dependency relationships and patterns to graph edges
-    // This would analyze existing dependency data and create proper graph relationships
     this.logger.debug('Converting VECTOR relationships to EKG format');
   }
 
   private async buildInitialRelationships(): Promise<void> {
-    // Scan for common dependency patterns across migrated repositories
-    // This could identify shared libraries, frameworks, etc. used across the organization
     this.logger.debug('Building initial cross-repository relationships');
   }
 
   private knowledgeToRepository(knowledge: any, repoId: string, repoPath: string): RepositoryNode {
-    // Convert ProjectKnowledge entity to RepositoryNode format
     return {
       id: repoId,
       organizationId: this.extractOrganization(repoPath),
@@ -766,11 +769,11 @@ export class EnterpriseKnowledgeGraph {
         topics: []
       },
       temporalData: {
-        createdAt: knowledge.createdAt,
+        createdAt: knowledge.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        pushedAt: knowledge.lastUpdated,
+        pushedAt: knowledge.lastUpdated || new Date().toISOString(),
         analyzedAt: new Date().toISOString(),
-        lastActivityAt: knowledge.lastUpdated
+        lastActivityAt: knowledge.lastUpdated || new Date().toISOString()
       },
       relationships: {
         parentOrganization: this.extractOrganization(repoPath),
@@ -785,14 +788,13 @@ export class EnterpriseKnowledgeGraph {
       },
       embeddings: {
         descriptionEmbedding: [],
-        codeEmbedding: [], // Would need to generate from existing VECTOR data
+        codeEmbedding: [],
         patternEmbedding: []
       }
     };
   }
 
   private extractOrganization(repoPath: string): string {
-    // Extract organization from git remote URL or path structure
     try {
       const gitConfigPath = require('path').join(repoPath, '.git', 'config');
       if (require('fs').existsSync(gitConfigPath)) {
@@ -803,13 +805,12 @@ export class EnterpriseKnowledgeGraph {
         }
       }
     } catch (error) {
-      // Ignore errors in extracting organization
+        // ignore
     }
     return 'unknown';
   }
 
   private detectPlatform(repoPath: string): 'github' | 'gitlab' | 'bitbucket' | 'azure' | 'other' {
-    // Determine platform from .git config
     try {
       const gitConfigPath = require('path').join(repoPath, '.git', 'config');
       if (require('fs').existsSync(gitConfigPath)) {
@@ -820,13 +821,12 @@ export class EnterpriseKnowledgeGraph {
         if (config.includes('azure.com')) return 'azure';
       }
     } catch (error) {
-      // Ignore errors in platform detection
+        // ignore
     }
     return 'other';
   }
 
   private generateRepoId(repoPath: string): string {
-    // Generate deterministic repository ID from path
     const crypto = require('crypto');
     return crypto.createHash('md5')
       .update(require('path').resolve(repoPath))
@@ -835,7 +835,6 @@ export class EnterpriseKnowledgeGraph {
   }
 
   private extractActivityMetrics(knowledge: any): ActivityMetrics {
-    // Extract activity metrics from existing knowledge
     return {
       commitsLastWeek: knowledge.performance?.analysisMetrics?.totalAnalyses || 0,
       activeContributors: knowledge.team?.members?.length || 0,
@@ -847,84 +846,61 @@ export class EnterpriseKnowledgeGraph {
   // ==================== INDEXING HELPERS ====================
 
   private async buildTextSearchIndices(): Promise<void> {
-    // Create full-text search indices for efficient name/description lookup
     this.logger.debug('Building text search indices');
   }
 
   private async buildEmbeddingIndices(): Promise<void> {
-    // Build vector indices for semantic similarity search
     this.logger.debug('Building embedding vector indices');
   }
 
   private async buildRelationshipIndices(): Promise<void> {
-    // Create efficient indices for relationship traversal
     this.logger.debug('Building relationship type indices');
   }
 
   private async buildTemporalIndices(): Promise<void> {
-    // Build indices for time-based queries and trend analysis
     this.logger.debug('Building temporal indices');
   }
 
   private async identifyCriticalRepositories(): Promise<string[]> {
-    // Rank repositories by activity, size, dependencies, etc.
     const criticalRepos: string[] = [];
-    let maxScore = 0;
 
-    for (const [id, node] of this.nodes) {
-      if (node.type !== 'repository') continue;
+    const scores = Array.from(this.nodes.values())
+        .filter(node => node.type === 'repository')
+        .map(node => {
+            const activityMetrics = node.properties.activityMetrics;
+            const activity = (activityMetrics && activityMetrics.commitsLastWeek !== undefined)
+                ? activityMetrics.commitsLastWeek : 0;
+            const size = node.properties.size || 0;
+            const dependencies = this.adjacencyList.get(node.id)?.size || 0;
+            const score = activity * 0.4 + size * 0.3 + dependencies * 0.3;
+            return { id: node.id, score };
+        });
 
-      // Calculate criticality score
-      const activity = node.properties.activityMetrics?.commitsLastWeek || 0;
-      const size = node.properties.size || 0;
-      const dependencies = this.adjacencyList.get(id)?.size || 0;
+    scores.sort((a, b) => b.score - a.score);
 
-      const score = activity * 0.4 + size * 0.3 + dependencies * 0.3;
-
-      if (score > maxScore || criticalRepos.length < 100) {
-        criticalRepos.push(id);
-        maxScore = Math.max(maxScore, score);
-      }
-    }
-
-    return criticalRepos.sort((a, b) => {
-      // Simple sorting by score - full implementation would use proper ranking
-      const nodeA = this.nodes.get(a);
-      const nodeB = this.nodes.get(b);
-      const scoreA = (nodeA?.properties.activityMetrics?.commitsLastWeek || 0) +
-                    (nodeA?.properties.size || 0);
-      const scoreB = (nodeB?.properties.activityMetrics?.commitsLastWeek || 0) +
-                    (nodeB?.properties.size || 0);
-      return scoreB - scoreA;
-    });
+    return scores.map(s => s.id);
   }
 
   private async loadRepositoryToCache(repoId: string): Promise<void> {
-    // Load complete repository data including relationships into memory
     const repository = await this.getGraphNode(repoId);
-
-    // Load related edges
     const edges = this.adjacencyList.get(repoId) || new Set();
 
-    // Load connected nodes
     for (const edge of edges) {
       if (!this.nodes.has(edge.targetId)) {
         try {
           await this.getGraphNode(edge.targetId);
         } catch (error) {
-          // Skip missing nodes
+          // ignore
         }
       }
     }
   }
 
   private updateRepositoryDependencyMetrics(repoId: string): Promise<void> {
-    // Update repository node's aggregated dependency statistics
     return Promise.resolve();
   }
 
   private edgeToDependency(edge: GraphEdge): DependencyEdge {
-    // Convert GraphEdge to DependencyEdge format
     return {
       id: edge.id,
       sourceId: edge.sourceId,
@@ -963,10 +939,9 @@ export class EnterpriseKnowledgeGraph {
   }
 
   private nodeToPattern(node: GraphNode): KnowledgePatternNode {
-    // Convert GraphNode to KnowledgePatternNode format
     return {
       id: node.id,
-      repositoryId: '', // Would need to be tracked separately
+      repositoryId: '',
       metadata: {
         patternType: 'architectural',
         name: node.properties.name || '',
@@ -1000,15 +975,15 @@ export class EnterpriseKnowledgeGraph {
   }
 
   private async findDuplicatedCode(repositories: string[]): Promise<any[]> {
-    return []; // Would analyze code across repositories
+    return [];
   }
 
   private async findStandardsViolations(repositories: string[]): Promise<any[]> {
-    return []; // Would scan for standards compliance
+    return [];
   }
 
   private async findArchitecturalOpportunities(repositories: string[]): Promise<any[]> {
-    return []; // Would identify refactoring opportunities
+    return [];
   }
 }
 

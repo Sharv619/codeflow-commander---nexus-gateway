@@ -9,10 +9,10 @@ import { Logger, defaultLogger } from '@/utils/logger';
  */
 export class CodeflowCore {
   private logger: Logger;
-  private context: ApplicationContext;
-  private registry: ServiceRegistry;
-  private pluginManager: PluginManager;
-  private configManager: ConfigurationManager;
+  private context!: ApplicationContext;
+  private registry!: ServiceRegistry;
+  private pluginManager!: PluginManager;
+  private configManager!: ConfigurationManager;
   private isInitialized = false;
 
   constructor(logger?: Logger) {
@@ -111,8 +111,8 @@ export class CodeflowCore {
     // Dynamically reconfigure system based on changes
     for (const [serviceName, serviceConfig] of Object.entries(changes.services || {})) {
       const service = this.registry.getService(serviceName);
-      if (service && typeof service.reconfigure === 'function') {
-        service.reconfigure(serviceConfig);
+      if (service && typeof (service as any).reconfigure === 'function') {
+        (service as any).reconfigure(serviceConfig);
       }
     }
   }
@@ -203,7 +203,7 @@ export class CodeflowCore {
 /**
  * Application Context - Central state management
  */
-export class ApplicationContext {
+class ApplicationContext {
   private configManager: ConfigurationManager;
   private logger: Logger;
   private systemState: Record<string, any> = {};
@@ -246,7 +246,7 @@ export class ApplicationContext {
 /**
  * Service Registry - Dependency injection container
  */
-export class ServiceRegistry {
+class ServiceRegistry {
   private services: Map<string, any> = new Map();
   private instances: Map<string, any> = new Map();
   private context: ApplicationContext;
@@ -338,7 +338,7 @@ export class ServiceRegistry {
 /**
  * Plugin Manager - Dynamic plugin loading and management
  */
-export class PluginManager {
+class PluginManager {
   private context: ApplicationContext;
   private registry: ServiceRegistry;
   private loadedPlugins: Map<string, any> = new Map();
@@ -395,7 +395,7 @@ export class PluginManager {
 /**
  * Configuration Manager - Centralized configuration management
  */
-export class ConfigurationManager {
+class ConfigurationManager {
   private configuration: Record<string, any> = {};
   private watchers: Array<(changes: Record<string, any>) => void> = [];
 

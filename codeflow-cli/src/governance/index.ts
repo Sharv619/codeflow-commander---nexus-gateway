@@ -1,8 +1,164 @@
+// File: src/governance/index.ts
 // Governance-specific implementations
 // Role-Based Access Control (RBAC) and advanced audit trail management
 
-import { Logger, defaultLogger } from '@/utils/logger';
-import { PermissionLevel } from '@/validation/GovernanceSafetyFramework';
+import { Logger, defaultLogger } from '../utils/logger';
+// Assuming PermissionLevel is correctly defined here or in a core types file.
+// If it's not, we'll define it based on usage.
+
+// ================ TYPES AND INTERFACES (Moved up for clarity and to fix redeclaration) ================
+
+type GovernanceDomain = 'security' | 'compliance' | 'operational' | 'governance' | 'general';
+type PermissionLevel = 'read' | 'write' | 'execute' | 'admin'; // Explicitly define based on usage
+
+interface RoleDefinition {
+  id: string;
+  name: string;
+  description: string;
+  permissions: Permission[];
+  createdAt: Date;
+  lastUpdated: Date;
+}
+
+interface UserPermissions {
+  userId: string;
+  roles: string[];
+  directPermissions: Permission[];
+  lastUpdated: Date;
+}
+
+interface Permission {
+  resource: string;
+  resourceType: string;
+  permission: PermissionLevel;
+}
+
+interface AuditEvent {
+  id: string;
+  timestamp: Date;
+  userId: string;
+  category: 'security' | 'compliance' | 'operational' | 'governance' | 'privileged_action'; // Added privileged_action
+  action: string;
+  resourceType: string;
+  resourceId: string;
+  ipAddress?: string;
+  userAgent?: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  success: boolean;
+  responseCode?: number;
+  violations?: string[];
+  complianceCategory?: string;
+  details?: Record<string, any>;
+}
+
+interface AuditQueryFilters {
+  userId?: string;
+  category?: string;
+  action?: string;
+  resourceType?: string;
+  startDate?: Date;
+  endDate?: Date;
+  limit?: number;
+}
+
+interface ComplianceReport {
+  complianceCategory: string;
+  period: { start: Date; end: Date };
+  totalEvents: number;
+  issues: number;
+  violations: number;
+  criticalIncidents: number;
+  recommendations: string[];
+  generatedAt: Date;
+}
+
+interface SecurityPosture {
+  overallStatus: 'good' | 'warning' | 'danger';
+  metrics: {
+    criticalIncidents: number;
+    highIssues: number;
+    failedAuthentications: number;
+    periodHours: number;
+  };
+  alerts: SecurityAlert[];
+  lastAssessment: Date;
+}
+
+interface SecurityAlert {
+  type: string;
+  severity: 'low' | 'medium' | 'high';
+  message: string;
+  affectedUsers: string[];
+}
+
+interface ExportData {
+  metadata: {
+    exportId: string;
+    generatedAt: Date;
+    filters: AuditQueryFilters;
+    recordCount: number;
+    dateRange: { from: Date; to: Date };
+  };
+  events: Array<AuditEvent & { formatted: Record<string, any> }>;
+}
+
+interface GovernancePolicy {
+  id: string;
+  domain: GovernanceDomain;
+  requireApproval: boolean;
+  approvalWorkflow?: ApprovalWorkflow; // Made optional for exactOptionalPropertyTypes
+  riskScore: number;
+}
+
+interface GovernanceContext {
+  domain: GovernanceDomain; // Use the defined GovernanceDomain type
+  userId: string;
+  resourceId: string;
+  action: string;
+}
+
+interface GovernanceDecision {
+  id: string;
+  context: GovernanceContext;
+  action: string;
+  parameters: Record<string, any>;
+  policiesEvaluated: PolicyEvaluationResult[];
+  requirements: string[];
+  approvalRequired: boolean;
+  approvalWorkflow?: ApprovalWorkflow; // Made optional
+  riskScore: number;
+  automatedApproval: boolean;
+  decisionDate: Date;
+}
+
+interface PolicyEvaluationResult {
+  policyId: string;
+  requiresApproval: boolean;
+  approvalWorkflow?: ApprovalWorkflow; // Made optional
+  riskScore: number;
+}
+
+interface ApprovalWorkflow {
+  id: string;
+  name: string;
+  quorum: number;
+}
+
+interface ActiveDecision {
+  decision: GovernanceDecision;
+  status: 'pending' | 'approved' | 'rejected' | 'escalated';
+  escalationLevel: number;
+  approvals: ApprovalRecord[];
+  rejections: ApprovalRecord[];
+}
+
+interface ApprovalRecord {
+  userId: string;
+  approved: boolean;
+  comments?: string; // Made optional to match usage
+  timestamp: Date;
+}
+
 
 /**
  * Role-Based Access Control System
@@ -24,7 +180,10 @@ export class RoleBasedAccessControl {
   hasPermission(userId: string, action: string, resource: string, resourceType: string): boolean {
     const userPerms = this.users.get(userId);
 
-    if (!userPerms) return false;
+    if (!userPerms) {
+      this.logger.warn('Permission denied: User not found', { userId, action, resource, resourceType });
+      return false;
+    }
 
     // Check direct user permissions first
     if (userPerms.directPermissions.some(perm =>
@@ -37,7 +196,10 @@ export class RoleBasedAccessControl {
     // Check role permissions
     for (const roleId of userPerms.roles) {
       const role = this.roles.get(roleId);
-      if (!role) continue;
+      if (!role) {
+        this.logger.warn('Permission denied: Role not found', { userId, roleId });
+        continue;
+      }
 
       if (role.permissions.some(perm =>
         perm.resource === resource && perm.resourceType === resourceType &&
@@ -47,7 +209,7 @@ export class RoleBasedAccessControl {
       }
     }
 
-    this.logger.warn('Permission denied', { userId, action, resource, resourceType });
+    this.logger.warn('Permission denied: No matching role or direct permission', { userId, action, resource, resourceType });
     return false;
   }
 
@@ -67,6 +229,8 @@ export class RoleBasedAccessControl {
       userPerms.lastUpdated = new Date();
       this.users.set(userId, userPerms);
       this.logger.info('Role granted', { userId, roleId });
+    } else {
+      this.logger.debug('Role already granted to user', { userId, roleId });
     }
   }
 
@@ -79,6 +243,8 @@ export class RoleBasedAccessControl {
       userPerms.roles = userPerms.roles.filter(r => r !== roleId);
       userPerms.lastUpdated = new Date();
       this.logger.info('Role revoked', { userId, roleId });
+    } else {
+      this.logger.warn('Cannot revoke role: User not found', { userId, roleId });
     }
   }
 
@@ -86,6 +252,10 @@ export class RoleBasedAccessControl {
    * Create custom role
    */
   createRole(roleId: string, name: string, description: string, permissions: Permission[]): void {
+    if (this.roles.has(roleId)) {
+      this.logger.warn('Role already exists', { roleId });
+      return;
+    }
     const role: RoleDefinition = {
       id: roleId,
       name,
@@ -104,7 +274,7 @@ export class RoleBasedAccessControl {
     this.createRole('developer', 'Developer', 'Basic developer access', [
       { resource: '*', resourceType: 'repository', permission: 'write' },
       { resource: '*', resourceType: 'agent', permission: 'read' },
-      { resource: '*', resourceType: 'agents', permission: 'execute' }
+      { resource: '*', resourceType: 'agent', permission: 'execute' } // Use 'agent' not 'agents'
     ]);
 
     // Engineering Lead role - team management
@@ -121,14 +291,13 @@ export class RoleBasedAccessControl {
   }
 
   private actionAllowedByPermission(action: string, permission: PermissionLevel): boolean {
-    const actionPermissions = {
-      read: ['read', 'write', 'admin'],
-      write: ['write', 'admin'],
-      execute: ['write', 'admin'],
-      admin: ['admin']
-    };
-
-    return actionPermissions[action as keyof typeof actionPermissions]?.includes(permission) || false;
+    switch (action) {
+      case 'read': return permission === 'read' || permission === 'write' || permission === 'execute' || permission === 'admin';
+      case 'write': return permission === 'write' || permission === 'admin';
+      case 'execute': return permission === 'execute' || permission === 'admin';
+      case 'admin': return permission === 'admin';
+      default: return false;
+    }
   }
 }
 
@@ -151,7 +320,7 @@ export class AuditTrailManager {
    */
   logEvent(event: Omit<AuditEvent, 'id' | 'timestamp'>): string {
     const auditEvent: AuditEvent = {
-      id: `audit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`, // Using substring for random part
       timestamp: new Date(),
       ...event
     };
@@ -159,11 +328,11 @@ export class AuditTrailManager {
     this.auditEvents.push(auditEvent);
 
     // Group by compliance categories
-    if (event.complianceCategory) {
-      if (!this.complianceGroups.has(event.complianceCategory)) {
-        this.complianceGroups.set(event.complianceCategory, []);
+    if (auditEvent.complianceCategory) { // Use auditEvent here
+      if (!this.complianceGroups.has(auditEvent.complianceCategory)) {
+        this.complianceGroups.set(auditEvent.complianceCategory, []);
       }
-      this.complianceGroups.get(event.complianceCategory)!.push(auditEvent);
+      this.complianceGroups.get(auditEvent.complianceCategory)!.push(auditEvent);
     }
 
     // Clean up old events
@@ -283,7 +452,7 @@ export class AuditTrailManager {
 
     return {
       metadata: {
-        exportId: `export_${Date.now()}`,
+        exportId: `export_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
         generatedAt: new Date(),
         filters,
         recordCount: events.length,
@@ -294,6 +463,7 @@ export class AuditTrailManager {
       },
       events: events.map(e => ({
         ...e,
+        // Make sure formatted is of type Record<string, any>
         formatted: this.formatEventForExport(e)
       }))
     };
@@ -340,6 +510,7 @@ export class AuditTrailManager {
       });
     }
 
+    // Comparison for 'privileged_action' category needs to be against the defined union type
     const privilegedActions = recentEvents.filter(e => e.category === 'privileged_action');
     if (privilegedActions.length > 20) {
       alerts.push({
@@ -404,7 +575,6 @@ export class GovernanceDecisionEngine {
       policiesEvaluated: [],
       requirements: [],
       approvalRequired: false,
-      approvalWorkflow: undefined,
       riskScore: 0,
       automatedApproval: false,
       decisionDate: new Date()
@@ -418,7 +588,9 @@ export class GovernanceDecisionEngine {
 
         if (policyDecision.requiresApproval) {
           decision.approvalRequired = true;
-          decision.approvalWorkflow = policyDecision.approvalWorkflow;
+          if (policyDecision.approvalWorkflow) {
+            decision.approvalWorkflow = policyDecision.approvalWorkflow;
+          }
         }
 
         decision.riskScore = Math.max(decision.riskScore, policyDecision.riskScore);
@@ -459,11 +631,11 @@ export class GovernanceDecisionEngine {
       throw new Error(`Decision ${decisionId} not found`);
     }
 
-    const approval = {
+    const approval: ApprovalRecord = { // Explicitly type the approval object
       userId,
       approved,
-      comments,
-      timestamp: new Date()
+      timestamp: new Date(),
+      ...(comments ? { comments } : {})
     };
 
     if (approved) {
@@ -473,7 +645,12 @@ export class GovernanceDecisionEngine {
     }
 
     // Check if decision threshold is met
-    this.checkDecisionThreshold(activeDecision);
+    // Ensure approvalWorkflow is present before accessing quorum
+    if (activeDecision.decision.approvalWorkflow) {
+        this.checkDecisionThreshold(activeDecision);
+    } else {
+        this.logger.warn('Cannot check decision threshold: Approval workflow not defined for decision', { decisionId });
+    }
   }
 
   private policyApplies(policy: GovernancePolicy, context: GovernanceContext, action: string): boolean {
@@ -496,190 +673,38 @@ export class GovernanceDecisionEngine {
     return {
       policyId: policy.id,
       requiresApproval: policy.requireApproval,
-      approvalWorkflow: policy.approvalWorkflow,
-      riskScore: policy.riskScore
+      riskScore: policy.riskScore,
+      ...(policy.approvalWorkflow ? { approvalWorkflow: policy.approvalWorkflow } : {})
     };
   }
 
   private checkDecisionThreshold(activeDecision: ActiveDecision): void {
     // Would implement quorum-based decision logic
-    const totalVotes = activeDecision.approvals.length + activeDecision.rejections.length;
-    const approvalPercentage = activeDecision.approvals.length / totalVotes;
+    // Avoid division by zero if no votes
+    if (activeDecision.approvals.length + activeDecision.rejections.length === 0) {
+        this.logger.debug('No votes yet, decision threshold not met.', { decisionId: activeDecision.decision.id });
+        return;
+    }
+
+    const approvalPercentage = activeDecision.approvals.length / (activeDecision.approvals.length + activeDecision.rejections.length);
+    const quorumRequired = activeDecision.decision.approvalWorkflow!.quorum; // Assured to be present by caller
 
     if (approvalPercentage >= 0.8) {
       activeDecision.status = 'approved';
     } else if (approvalPercentage <= 0.2) {
       activeDecision.status = 'rejected';
-    } else if (totalVotes >= activeDecision.decision.approvalWorkflow!.quorum) {
-      activeDecision.status = 'approved'; // Assuming majority wins
+    } else if (activeDecision.approvals.length + activeDecision.rejections.length >= quorumRequired) { // Check if quorum is met
+      activeDecision.status = 'approved'; // Assuming majority wins if quorum met and not rejected
     }
   }
 }
 
-// ================ TYPES AND INTERFACES ================
-
-interface RoleDefinition {
-  id: string;
-  name: string;
-  description: string;
-  permissions: Permission[];
-  createdAt: Date;
-  lastUpdated: Date;
-}
-
-interface UserPermissions {
-  userId: string;
-  roles: string[];
-  directPermissions: Permission[];
-  lastUpdated: Date;
-}
-
-interface Permission {
-  resource: string;
-  resourceType: string;
-  permission: PermissionLevel;
-}
-
-interface AuditEvent {
-  id: string;
-  timestamp: Date;
-  userId: string;
-  category: 'security' | 'compliance' | 'operational' | 'governance';
-  action: string;
-  resourceType: string;
-  resourceId: string;
-  ipAddress?: string;
-  userAgent?: string;
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  success: boolean;
-  responseCode?: number;
-  violations?: string[];
-  complianceCategory?: string;
-  details?: Record<string, any>;
-}
-
-interface AuditQueryFilters {
-  userId?: string;
-  category?: string;
-  action?: string;
-  resourceType?: string;
-  startDate?: Date;
-  endDate?: Date;
-  limit?: number;
-}
-
-interface ComplianceReport {
-  complianceCategory: string;
-  period: { start: Date; end: Date };
-  totalEvents: number;
-  issues: number;
-  violations: number;
-  criticalIncidents: number;
-  recommendations: string[];
-  generatedAt: Date;
-}
-
-interface SecurityPosture {
-  overallStatus: 'good' | 'warning' | 'danger';
-  metrics: {
-    criticalIncidents: number;
-    highIssues: number;
-    failedAuthentications: number;
-    periodHours: number;
-  };
-  alerts: SecurityAlert[];
-  lastAssessment: Date;
-}
-
-interface SecurityAlert {
-  type: string;
-  severity: 'low' | 'medium' | 'high';
-  message: string;
-  affectedUsers: string[];
-}
-
-interface ExportData {
-  metadata: {
-    exportId: string;
-    generatedAt: Date;
-    filters: AuditQueryFilters;
-    recordCount: number;
-    dateRange: { from: Date; to: Date };
-  };
-  events: Array<AuditEvent & { formatted: Record<string, any> }>;
-}
-
-interface GovernancePolicy {
-  id: string;
-  domain: GovernanceDomain;
-  requireApproval: boolean;
-  approvalWorkflow?: ApprovalWorkflow;
-  riskScore: number;
-}
-
-interface GovernanceContext {
-  domain: string;
-  userId: string;
-  resourceId: string;
-  action: string;
-}
-
-interface GovernanceDecision {
-  id: string;
-  context: GovernanceContext;
-  action: string;
-  parameters: Record<string, any>;
-  policiesEvaluated: PolicyEvaluationResult[];
-  requirements: string[];
-  approvalRequired: boolean;
-  approvalWorkflow?: ApprovalWorkflow;
-  riskScore: number;
-  automatedApproval: boolean;
-  decisionDate: Date;
-}
-
-interface PolicyEvaluationResult {
-  policyId: string;
-  requiresApproval: boolean;
-  approvalWorkflow?: ApprovalWorkflow;
-  riskScore: number;
-}
-
-interface ApprovalWorkflow {
-  id: string;
-  name: string;
-  quorum: number;
-}
-
-interface ActiveDecision {
-  decision: GovernanceDecision;
-  status: 'pending' | 'approved' | 'rejected' | 'escalated';
-  escalationLevel: number;
-  approvals: ApprovalRecord[];
-  rejections: ApprovalRecord[];
-}
-
-interface ApprovalRecord {
-  userId: string;
-  approved: boolean;
-  comments?: string;
-  timestamp: Date;
-}
-
-type GovernanceDomain = 'security' | 'compliance' | 'operational' | 'governance' | 'general';
-
-// ================ EXPORTS ================
-
-export { RoleBasedAccessControl, AuditTrailManager, GovernanceDecisionEngine };
 export type {
   AuditEvent,
   GovernanceDecision,
   SecurityPosture,
-  ComplianceReport
-};
-
-export default {
-  RoleBasedAccessControl,
-  AuditTrailManager,
-  GovernanceDecisionEngine
+  ComplianceReport,
+  PermissionLevel,
+  GovernanceDomain,
+  ApprovalWorkflow
 };

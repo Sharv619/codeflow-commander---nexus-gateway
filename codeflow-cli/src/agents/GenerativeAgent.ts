@@ -2,22 +2,22 @@
 // Base GenerativeAgent framework implementing Phase 3 generative capabilities
 // Provides foundational pattern for confidence-scored, safety-validated code generation
 
-import { Logger } from '@/utils/logger';
-import { ErrorHandler, ValidationPipeline, ConfidenceCalculator, SafetyGovernor } from '@/validation';
-import { StateManager } from '@/state';
-import { StorageManager } from '@/storage';
-import { RAGService } from '@/services/rag';
-import { PRISMService } from '@/services/prism';
-import { PatchEngine } from '@/services/patch-engine';
+import { Logger, defaultLogger } from '../utils/logger';
+import { ErrorHandler, ValidationPipeline, ConfidenceCalculator, SafetyGovernor } from '../validation';
+import { StateManager } from '../state';
+import { StorageManager } from '../storage';
+import { RAGService } from '../services/rag';
+import { PRISMService } from '../services/prism';
+import { PatchEngine } from '../services/patch-engine';
 import {
   CodeSuggestion,
   DeveloperFeedback,
   CodeEntity,
-  ArchitecturePattern
-} from '@/types/entities';
-import { ConfidenceScore, ValidationResult } from '@/types/core';
+  ArchitecturePattern,
+} from '../types/entities';
+import { ConfidenceScore, ValidationResult } from '../types/core';
 
-export interface AgentContext {
+interface AgentContext {
   sessionId: string;
   projectPath: string;
   developerId: string;
@@ -27,7 +27,7 @@ export interface AgentContext {
   developmentGoals?: string[];
 }
 
-export interface GenerationRequest {
+interface GenerationRequest {
   target: {
     filePath?: string;
     entityName?: string;
@@ -47,7 +47,7 @@ export interface GenerationRequest {
   };
 }
 
-export interface GenerationResult {
+interface GenerationResult {
   suggestion: CodeSuggestion;
   confidence: ConfidenceScore;
   validation: ValidationResult;
@@ -58,10 +58,10 @@ export interface GenerationResult {
     tokensUsed: number;
     processingSteps: string[];
   };
-  alternatives?: CodeSuggestion[];
+  alternatives?: CodeSuggestion[] | undefined; // FIX: Allow undefined for exactOptionalPropertyTypes
 }
 
-export interface AgentCapabilities {
+interface AgentCapabilities {
   id: string;
   name: string;
   version: string;
@@ -73,7 +73,7 @@ export interface AgentCapabilities {
   learningCapabilities: string[];
 }
 
-export interface GenerationStrategy {
+interface GenerationStrategy {
   name: string;
   priority: number;
   condition: (request: GenerationRequest, context: AgentContext) => boolean;
@@ -86,7 +86,7 @@ export interface GenerationStrategy {
   };
 }
 
-export interface LearningData {
+interface LearningData {
   timestamp: Date;
   suggestionId: string;
   entityType: string;
@@ -130,7 +130,7 @@ export abstract class GenerativeAgent {
     patchEngine: PatchEngine,
     logger?: Logger
   ) {
-    this.logger = logger || {} as Logger; // Placeholder
+    this.logger = logger || defaultLogger;
     this.errorHandler = new ErrorHandler(this.logger);
     this.stateManager = stateManager;
     this.storageManager = storageManager;
@@ -206,7 +206,7 @@ export abstract class GenerativeAgent {
       // Assess safety for application
       const safetyAssessment = await this.safetyGovernor.assessSafety(
         adjustedConfidence,
-        this.getSafetyControls(),
+        await this.getSafetyControls(),
         this.extractRiskFactors(request)
       );
 
@@ -239,7 +239,7 @@ export abstract class GenerativeAgent {
 
       return finalResult;
 
-    } catch (error) {
+    } catch (error: unknown) {
       this.errorHandler.handleError(error, { operation: 'generate', request, context });
       throw error;
     }
@@ -262,10 +262,12 @@ export abstract class GenerativeAgent {
 
       // Update learning record with feedback
       learningRecord.accepted = feedback.accepted;
-      learningRecord.rating = feedback.rating;
+      if (feedback.usefulnessRating !== undefined) {
+        learningRecord.rating = feedback.usefulnessRating;
+      }
 
-      if (feedback.comments && feedback.comments.length > 0) {
-        learningRecord.feedbackComments = feedback.comments;
+      if (feedback.customNotes) {
+        learningRecord.feedbackComments = [feedback.customNotes];
       }
 
       // Calculate performance improvements
@@ -273,6 +275,8 @@ export abstract class GenerativeAgent {
         learningRecord,
         feedback
       );
+      learningRecord.performanceMetrics = performanceMetrics;
+
 
       // Update internal model parameters
       await this.updateModelParameters(learningRecord, feedback);
@@ -283,11 +287,11 @@ export abstract class GenerativeAgent {
       this.logger.debug('Learning feedback processed', {
         suggestionId,
         accepted: feedback.accepted,
-        rating: feedback.rating
+        rating: feedback.usefulnessRating
       });
 
-    } catch (error) {
-      this.logger.warn('Failed to process learning feedback', { error, suggestionId });
+    } catch (error: unknown) {
+      this.logger.warn('Failed to process learning feedback', { error: error instanceof Error ? error.message : String(error), suggestionId });
     }
   }
 
@@ -479,9 +483,10 @@ export abstract class GenerativeAgent {
   /**
    * Get safety controls for this agent
    */
-  private getSafetyControls() {
+  private async getSafetyControls() {
     // Load from global state or use agent defaults
-    return this.stateManager.getGlobalState().ai.safety;
+    const globalState = await this.stateManager.getGlobalState();
+    return globalState.ai.safety;
   }
 
   /**
@@ -501,7 +506,7 @@ export abstract class GenerativeAgent {
     // Get last 50 feedback records
     return this.learningHistory.slice(-50).map(l => ({
       accepted: l.accepted,
-      rating: l.rating
+      ...(l.rating !== undefined && { rating: l.rating }),
     }));
   }
 
@@ -567,7 +572,7 @@ export abstract class GenerativeAgent {
     return {
       confidence: record.performanceMetrics.confidence,
       accuracy: feedback.accepted ? 1 : 0,
-      usefulness: feedback.rating ? (feedback.rating / 5) : (feedback.accepted ? 0.8 : 0.2)
+      usefulness: feedback.usefulnessRating ? (feedback.usefulnessRating / 5) : (feedback.accepted ? 0.8 : 0.2)
     };
   }
 
@@ -578,11 +583,11 @@ export abstract class GenerativeAgent {
     // Agent-specific parameter updates would be implemented by subclasses
     // For now, store feedback patterns for future strategy improvements
     await this.storageManager.storeMetadata(
-      `agent:${this.capabilities.id}:learning`,
-      `pattern:${record.contextHash}`,
+      'global',
+      `agent:${this.capabilities.id}:learning:pattern:${record.contextHash}`,
       {
         feedback: feedback.accepted,
-        rating: feedback.rating,
+        rating: feedback.usefulnessRating,
         timestamp: record.timestamp
       }
     );
@@ -594,9 +599,10 @@ export abstract class GenerativeAgent {
   private async loadLearningData(): Promise<void> {
     try {
       const learningKey = `agent:${this.capabilities.id}:learning`;
-      const learningData = await this.storageManager.getMetadata('global',learningKey);
+      const learningData = await this.storageManager.getMetadata('global', learningKey);
 
-      if (learningData) {
+      // FIX: Add a null check before accessing 'history'
+      if (learningData && learningData.history) {
         // Load and restore learning history
         this.learningHistory = learningData.history || [];
         this.logger.debug('Agent learning data loaded', {
@@ -604,8 +610,8 @@ export abstract class GenerativeAgent {
           recordsLoaded: this.learningHistory.length
         });
       }
-    } catch (error) {
-      this.logger.warn('Failed to load learning data, starting fresh', { error });
+    } catch (error: unknown) {
+      this.logger.warn('Failed to load learning data, starting fresh', { error: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -620,8 +626,8 @@ export abstract class GenerativeAgent {
         lastUpdated: new Date(),
         version: this.capabilities.version
       });
-    } catch (error) {
-      this.logger.warn('Failed to persist learning data', { error });
+    } catch (error: unknown) {
+      this.logger.warn('Failed to persist learning data', { error: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -643,8 +649,7 @@ export abstract class GenerativeAgent {
     this.learningHistory.forEach((record, index) => {
       // Simple trend analysis - would be more sophisticated in production
       if (index > this.learningHistory.length / 2) {
-        learningProgress[record.entityType] = learningProgress[record.entityType] || 0;
-        learningProgress[record.entityType] += record.accepted ? 1 : 0;
+        learningProgress[record.entityType] = (learningProgress[record.entityType] ?? 0) + (record.accepted ? 1 : 0);
       }
     });
 
@@ -658,17 +663,22 @@ export abstract class GenerativeAgent {
     }
 
     // Specialization analysis
-    this.capabilities.specialization.forEach(spec => {
-      const metrics = this.getPerformanceInsights();
-      const specAccuracy = metrics.specializationMetrics[spec];
+    const performanceInsights = this.getPerformanceInsights();
+    if (performanceInsights) {
+        this.capabilities.specialization.forEach(spec => {
+          const specAccuracy = performanceInsights.specializationMetrics[spec];
 
-      if (specAccuracy > 0.8) {
-        strengths.push(`Strong performance in ${spec} generation`);
-      } else if (specAccuracy < 0.5) {
-        weaknesses.push(`Room for improvement in ${spec} generation`);
-        recommendations.push(`Focus on ${spec}-specific examples and feedback`);
-      }
-    });
+          if (specAccuracy !== undefined) {
+            if (specAccuracy > 0.8) {
+              strengths.push(`Strong performance in ${spec} generation`);
+            } else if (specAccuracy < 0.5) {
+              weaknesses.push(`Room for improvement in ${spec} generation`);
+              recommendations.push(`Focus on ${spec}-specific examples and feedback`);
+            }
+          }
+        });
+    }
+
 
     return {
       learningProgress,
@@ -699,8 +709,8 @@ export abstract class GenerativeAgent {
       this.learningHistory.reduce((sum, record) => sum + record.performanceMetrics.confidence, 0) /
       this.learningHistory.length : 0;
 
-    const lastLearningUpdate = this.learningHistory.length > 0 ?
-      this.learningHistory[this.learningHistory.length - 1].timestamp : null;
+    const lastRecord = this.learningHistory[this.learningHistory.length - 1];
+    const lastLearningUpdate = lastRecord ? lastRecord.timestamp : null;
 
     // Determine status based on metrics
     let status: 'healthy' | 'degraded' | 'serious' | 'critical' = 'healthy';
@@ -709,7 +719,7 @@ export abstract class GenerativeAgent {
 
     return {
       status,
-      uptime: Date.now() - (this as any).startTime || 0,
+      uptime: Date.now() - ((this as any).startTime || Date.now()),
       learningRecords: this.learningHistory.length,
       averageConfidence,
       lastLearningUpdate
