@@ -11,6 +11,9 @@ import readline from 'readline';
 import { indexProject } from './rag.js';
 import { orchestrateReview } from './agents.js';
 
+// Import CLI integration service
+import { indexProject, analyzeDiff } from '../services/cli-integration/src/index.js';
+
 // Export for use in agents module
 export { callAIProvider };
 
@@ -18,8 +21,8 @@ const program = new Command();
 
 program
   .name('codeflow-hook')
-  .description('Interactive CI/CD simulator and AI-powered code reviewer')
-  .version('1.0.0');
+  .description('Interactive CI/CD simulator and AI-powered code reviewer with EKG backend integration')
+  .version('4.0.0');
 
 // Configure AI provider settings
 program
@@ -199,41 +202,34 @@ program
     }
   });
 
-// Index project knowledge base for RAG
+// Index repository via EKG Ingestion Service (Phase 4)
 program
   .command('index')
-  .description('Index project files for Retrieval-Augmented Generation (RAG)')
-  .option('-d, --dry-run', 'Show what files would be indexed without actually indexing')
+  .description('Index repository via EKG Ingestion Service')
+  .option('-d, --dry-run', 'Show what would be indexed without actually indexing')
   .action(async (options) => {
     try {
-      const configPath = path.join(os.homedir(), '.codeflow-hook', 'config.json');
+      const spinner = ora('Submitting repository for EKG analysis...').start();
 
-      if (!fs.existsSync(configPath)) {
-        console.log(chalk.red('No configuration found. Run: codeflow-hook config -k <api-key>'));
-        process.exit(1);
+      const result = await indexProject({
+        dryRun: options.dryRun || false
+      });
+
+      spinner.succeed('Repository indexing initiated');
+      console.log(chalk.green(`✅ ${result.message}`));
+
+      if (result.repositoryId) {
+        console.log(chalk.blue(`📋 Repository ID: ${result.repositoryId}`));
       }
 
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-      const spinner = ora('Indexing project knowledge base...').start();
-
-      if (options.dryRun) {
-        spinner.stop();
-        console.log(chalk.blue('🔍 Dry run mode - files to be indexed:'));
-        const { findKeyFiles } = await import('./rag.js');
-        const keyFiles = await findKeyFiles(process.cwd());
-        keyFiles.forEach(file => console.log(chalk.gray(`  - ${file}`)));
-        console.log(chalk.green(`📊 Total files to index: ${keyFiles.length}`));
-        return;
+      if (result.stats) {
+        console.log(chalk.gray(`📊 Stats: ${JSON.stringify(result.stats, null, 2)}`));
       }
 
-      const result = await indexProject(config);
-
-      spinner.succeed('Knowledge base indexing complete');
-      console.log(chalk.green(`✅ Indexed ${result.indexedFiles} files with ${result.totalChunks} chunks`));
-      console.log(chalk.blue('📁 Knowledge base stored in: .codeflow/index/'));
+      console.log(chalk.cyan('🔗 Repository submitted to EKG Ingestion Service for analysis'));
 
     } catch (error) {
-      console.error(chalk.red(`❌ Indexing failed: ${error.message}`));
+      console.log(chalk.red(`❌ Indexing failed: ${error.message}`));
       process.exit(1);
     }
   });
@@ -298,13 +294,12 @@ exit 0
     }
   });
 
-// Analyze diff with specialized AI agents
+// Analyze diff with EKG Query Service context enhancement (Phase 4)
 program
   .command('analyze-diff')
-  .description('Analyze git diff using specialized AI agents (RAG-enhanced)')
+  .description('Analyze git diff using EKG context enhancement')
   .argument('[diff]', 'Git diff content')
-  .option('--legacy', 'Use legacy monolithic analysis instead of agentic workflow')
-  .option('--no-rag', 'Disable RAG context retrieval')
+  .option('--legacy', 'Use legacy analysis instead of EKG-enhanced analysis')
   .action(async (diff, options) => {
     try {
       // Read diff content from stdin or argument
@@ -317,63 +312,34 @@ program
         diffContent = Buffer.concat(chunks).toString('utf8');
       }
 
-      const configPath = path.join(os.homedir(), '.codeflow-hook', 'config.json');
-
-      if (!fs.existsSync(configPath)) {
-        console.log(chalk.red('No configuration found. Run: codeflow-hook config -k <api-key>'));
-        process.exit(1);
-      }
-
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-
       if (diffContent.trim() === '') {
         console.log(chalk.gray('ℹ️  No changes to analyze'));
         return;
       }
 
-      // Legacy mode: use original monolithic analysis
-      if (options.legacy) {
-        const spinner = ora(`Analyzing code with ${config.provider}...`).start();
-        const prompt = generateCodeReviewPrompt(diffContent);
+      console.log(chalk.blue('🔬 Analyzing diff with EKG context enhancement...'));
 
-        let result;
-        try {
-          result = await callAIProvider(config, prompt);
-        } catch (error) {
-          spinner.fail('Analysis failed');
-          console.error(chalk.red(`AI API Error: ${error.message}`));
-          process.exit(1);
+      const result = await analyzeDiff(diffContent, {
+        legacy: options.legacy || false,
+        outputFormat: 'console'
+      });
+
+      if (result.success) {
+        console.log(chalk.green(`✅ ${result.message}`));
+        displayEKGAnalysisResults(result.analysis);
+
+        if (result.stats) {
+          console.log(chalk.gray(`📊 EKG Queries: ${result.stats.ekg_queries}`));
+          console.log(chalk.gray(`👥 Similar Repos Found: ${result.stats.similar_repos_found}`));
+          console.log(chalk.gray(`⏱️  Analysis Time: ${result.stats.analysis_time}ms`));
         }
-
-        spinner.succeed('Analysis complete');
-        displayAnalysisResults(result);
-        return;
-      }
-
-      // Agentic workflow mode
-      const spinner = ora(`Running specialized code review agents...`).start();
-
-      let results;
-      try {
-        if (options.rag === false) {
-          // Force no RAG context
-          const { orchestrateReviewWithoutRAG } = await import('./agents.js');
-          results = await orchestrateReviewWithoutRAG(diffContent, config);
-        } else {
-          // Use RAG-enabled workflow
-          results = await orchestrateReview(diffContent, config);
-        }
-      } catch (error) {
-        spinner.fail('Analysis failed');
-        console.error(chalk.red(`Agent analysis failed: ${error.message}`));
+      } else {
+        console.log(chalk.red(`❌ Analysis failed: ${result.message}`));
         process.exit(1);
       }
 
-      spinner.succeed('Agentic analysis complete');
-      displayAgenticResults(results);
-
     } catch (error) {
-      console.log(chalk.red(`Configuration error: ${error.message}`));
+      console.log(chalk.red(`❌ Analysis error: ${error.message}`));
       process.exit(1);
     }
   });
@@ -731,6 +697,69 @@ function getTypeIcon(type) {
       return '📝';
     default:
       return '❓';
+  }
+}
+
+// Display EKG-enhanced analysis results (Phase 4)
+function displayEKGAnalysisResults(analysis) {
+  if (!analysis) {
+    console.log(chalk.yellow('⚠️  No analysis results available'));
+    return;
+  }
+
+  // Display summary
+  if (analysis.summary) {
+    console.log(chalk.blue('📊 Analysis Summary:'));
+    console.log(`   📁 Files modified: ${analysis.summary.totalFiles}`);
+    console.log(`   ➕ Additions: ${analysis.summary.totalAdditions}`);
+    console.log(`   ➖ Deletions: ${analysis.summary.totalDeletions}`);
+    console.log(`   🧠 EKG enhanced: ${analysis.summary.ekgEnhanced ? 'Yes' : 'No'}`);
+    console.log();
+  }
+
+  // Display EKG context information
+  if (analysis.ekg_context) {
+    console.log(chalk.blue('🧠 EKG Context:'));
+    console.log(`   📚 Patterns analyzed: ${analysis.ekg_context.patterns_analyzed || 0}`);
+    console.log(`   👥 Similar repositories: ${analysis.ekg_context.similar_repositories_found || 0}`);
+    console.log(`   🔍 Repository known to EKG: ${analysis.ekg_context.repository_known ? 'Yes' : 'No'}`);
+    console.log();
+  }
+
+  // Display issues
+  if (analysis.issues && analysis.issues.length > 0) {
+    console.log(chalk.yellow('⚠️ Issues Found:'));
+    analysis.issues.forEach(issue => {
+      const severityColor = getSeverityColor(issue.severity);
+      const typeIcon = getTypeIcon(issue.type);
+      console.log(`   ${severityColor}${typeIcon} ${issue.severity}: ${issue.description}`);
+    });
+    console.log();
+  }
+
+  // Display recommendations
+  if (analysis.recommendations && analysis.recommendations.length > 0) {
+    console.log(chalk.green('💡 Recommendations:'));
+    analysis.recommendations.forEach(rec => {
+      const severityColor = getSeverityColor(rec.severity);
+      console.log(`   ${severityColor}• ${rec.description}`);
+      if (rec.file) {
+        console.log(chalk.gray(`     📁 File: ${rec.file}`));
+      }
+    });
+    console.log();
+  }
+
+  // Display file details
+  if (analysis.files && analysis.files.length > 0) {
+    console.log(chalk.blue('📂 Files Changed:'));
+    analysis.files.forEach(file => {
+      const changeType = file.isNew ? 'NEW' : 'MODIFIED';
+      const changeColor = file.isNew ? chalk.green : chalk.blue;
+      console.log(`${changeColor}   ${changeType} ${file.path} (${file.language})`);
+      console.log(chalk.gray(`      +${file.additions} -${file.deletions} changes`));
+    });
+    console.log();
   }
 }
 

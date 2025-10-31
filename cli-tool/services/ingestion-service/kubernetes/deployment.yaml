@@ -1,0 +1,161 @@
+---
+# ------------------------------------------------------------------------------
+# EKG Ingestion Service - Kubernetes Deployment
+# Deploys the ingestion service on EKS with proper configuration
+# ------------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ekg-ingestion-service
+  namespace: codeflow-platform  # Dedicated namespace for the platform
+  labels:
+    app: ekg-ingestion-service
+    component: ingestion
+    version: v1.0.0
+    environment: production
+    project: codeflow-platform
+    team: backend-services
+spec:
+  replicas: 3  # High availability with multiple replicas
+  selector:
+    matchLabels:
+      app: ekg-ingestion-service
+  template:
+    metadata:
+      labels:
+        app: ekg-ingestion-service
+        component: ingestion
+        version: v1.0.0
+        environment: production
+        project: codeflow-platform
+        team: backend-services
+    spec:
+      # Service account with Neptune and ECR permissions
+      serviceAccountName: ekg-service-account
+
+      # Security context for the pod
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+
+      # Container configuration
+      containers:
+        - name: ekg-ingestion-service
+          image: codeflow/ekg-ingestion-service:v1.0.0  # Built by CI/CD pipeline
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+
+          # Resource limits for production
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+          # Environment variables
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "3000"
+            - name: CORS_ORIGIN
+              value: "*"
+            # GitHub configuration
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: github-credentials
+                  key: token
+            # Neptune configuration (use outputs from Terraform)
+            - name: NEPTUNE_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: neptune-config
+                  key: neptune_endpoint
+            - name: NEPTUNE_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: neptune-config
+                  key: neptune_port
+
+          # Health checks - align with application endpoints
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+
+          # Startup probe for slow initializations
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 30
+
+          # Volume mount for temporary repository processing
+          volumeMounts:
+            - name: temp-storage
+              mountPath: /tmp/repositories
+
+          # Security context for the container
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1001
+            capabilities:
+              drop:
+                - ALL
+
+      # Volumes for temporary storage
+      volumes:
+        - name: temp-storage
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi
+
+      # Node affinity for cost optimization (if needed)
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+              - key: node.kubernetes.io/instance-type
+                operator: In
+                values:
+                - t3.large
+                - t3.xlarge
+
+      # Tolerations for spot instances (if using)
+      tolerations:
+        - key: "kubernetes.azure.com/scalesetpriority"
+          operator: "Equal"
+          value: "spot"
+          effect: "NoSchedule"
+
+      # Pod disruption budget considerations
+      terminationGracePeriodSeconds: 30

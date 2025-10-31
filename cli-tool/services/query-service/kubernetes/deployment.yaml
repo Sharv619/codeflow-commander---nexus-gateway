@@ -1,0 +1,178 @@
+---
+# ------------------------------------------------------------------------------
+# EKG Query Service - Kubernetes Deployment
+# Deploys the GraphQL API service on EKS with proper configuration
+# ------------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ekg-query-service
+  namespace: codeflow-platform
+  labels:
+    app: ekg-query-service
+    component: query
+    version: v1.0.0
+    environment: production
+    project: codeflow-platform
+    team: backend-services
+spec:
+  replicas: 2  # GraphQL services typically need fewer replicas but higher stability
+  selector:
+    matchLabels:
+      app: ekg-query-service
+  template:
+    metadata:
+      labels:
+        app: ekg-query-service
+        component: query
+        version: v1.0.0
+        environment: production
+        project: codeflow-platform
+        team: backend-services
+      annotations:
+        # Enable Prometheus metrics scraping
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "4000"
+        prometheus.io/path: "/metrics"
+    spec:
+      # Service account with Neptune read permissions
+      serviceAccountName: ekg-service-account  # Reuses the same service account
+
+      # Security context for the pod
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+
+      # Container configuration
+      containers:
+        - name: ekg-query-service
+          image: codeflow/ekg-query-service:v1.0.0  # Built by CI/CD pipeline
+          ports:
+            - name: graphql
+              containerPort: 4000
+              protocol: TCP
+
+          # Resource limits for GraphQL service (more memory intensive)
+          resources:
+            requests:
+              memory: "384Mi"  # GraphQL queries can be memory intensive
+              cpu: "200m"
+            limits:
+              memory: "768Mi"
+              cpu: "800m"
+
+          # Environment variables
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "4000"
+            - name: CORS_ORIGIN
+              value: "http://localhost:3000,https://app.codeflow.com"  # Allow frontend and web app
+            - name: GRAPHQL_PLAYGROUND
+              value: "false"  # Disabled in production
+            # Neptune configuration (use outputs from Terraform)
+            - name: NEPTUNE_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: neptune-config
+                  key: neptune_endpoint
+            - name: NEPTUNE_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: neptune-config
+                  key: neptune_port
+            # Optional: Add JWT secret for authentication in Phase 5+
+            # - name: JWT_SECRET
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: auth-secrets
+            #       key: jwt-secret
+
+          # Health checks - specific to GraphQL service
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: graphql
+            initialDelaySeconds: 45  # GraphQL compilation takes longer
+            periodSeconds: 30
+            timeoutSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: graphql
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+
+          # Startup probe for GraphQL schema compilation
+          startupProbe:
+            httpGet:
+              path: /health
+              port: graphql
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 10
+            successThreshold: 1
+            failureThreshold: 12  # More failures allowed during startup
+
+          # Volume mount for schema caching
+          volumeMounts:
+            - name: schema-cache
+              mountPath: /tmp/cache
+              subPath: schema
+
+          # Security context for the container
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1001
+            capabilities:
+              drop:
+                - ALL
+
+      # Volumes for caching
+      volumes:
+        - name: schema-cache
+          emptyDir:
+            medium: Memory
+            sizeLimit: 128Mi  # Schema caching
+
+      # Affinity rules for better performance (same node as Neptune if needed)
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+              - key: node.kubernetes.io/instance-type
+                operator: In
+                values:
+                - t3.large
+                - t3.xlarge
+                - t3.2xlarge  # Larger instances for GraphQL processing
+
+      # Topology spread for better high availability
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: ekg-query-service
+
+      # Tolerations for spot instances
+      tolerations:
+        - key: "kubernetes.azure.com/scalesetpriority"
+          operator: "Equal"
+          value: "spot"
+          effect: "NoSchedule"
+
+      terminationGracePeriodSeconds: 60  # GraphQL may need time to finish queries

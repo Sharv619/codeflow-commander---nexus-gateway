@@ -1,0 +1,197 @@
+"""
+Enterprise Knowledge Graph (EKG) Query API
+
+Provides intelligent querying capabilities for the CodeFlow platform's
+enterprise knowledge graph, enabling access to repository intelligence,
+pattern analysis, and dependency insights.
+"""
+
+type Query {
+  """
+  Get comprehensive intelligence for a specific repository
+  """
+  repositoryIntelligence(repositoryId: ID!): RepositoryIntelligence
+
+  """
+  Find repositories similar to the specified one based on patterns and characteristics
+  """
+  similarRepositories(repositoryId: ID!, limit: Int = 10): [SimilarRepository!]!
+
+  """
+  Get all repositories in the knowledge graph
+  """
+  repositories(
+    limit: Int = 50
+    offset: Int = 0
+    language: String
+    minSize: Int
+    maxSize: Int
+  ): [Repository!]!
+
+  """
+  Search for repositories by name, description, or patterns
+  """
+  searchRepositories(query: String!, limit: Int = 20): [Repository!]!
+
+  """
+  Get patterns detected across the enterprise
+  """
+  patterns(
+    category: String
+    language: String
+    minConfidence: Float
+    limit: Int = 50
+  ): [Pattern!]!
+
+  """
+  Get statistics about the knowledge graph
+  """
+  graphStatistics: GraphStatistics!
+
+  """
+  Analyze dependencies for a repository
+  """
+  repositoryDependencies(repositoryId: ID!): [Dependency!]!
+
+  """
+  Get patterns detected in a specific repository
+  """
+  repositoryPatterns(repositoryId: ID!): [Pattern!]!
+}
+
+"""
+Repository intelligence and analysis results
+"""
+type RepositoryIntelligence {
+  repository: Repository!
+  dependencies: [Dependency!]!
+  patterns: [Pattern!]!
+  technicalDebt: TechnicalDebtForecast
+  performance: PerformanceMetrics
+}
+
+"""
+Repository information
+"""
+type Repository {
+  id: ID!
+  name: String!
+  fullName: String!
+  owner: String!
+  description: String
+  url: String!
+  language: String
+  languages: [LanguageBreakdown!]!
+  size: Int!
+  stars: Int!
+  forks: Int!
+  watchers: Int!
+  isPrivate: Boolean!
+  isArchived: Boolean!
+  createdAt: String!
+  updatedAt: String!
+  pushedAt: String!
+  analyzedAt: String!
+  lastActivityAt: String!
+}
+
+"""
+Language usage breakdown for a repository
+"""
+type LanguageBreakdown {
+  language: String!
+  bytes: Int!
+  percentage: Float!
+}
+
+"""
+Dependency relationship information
+"""
+type Dependency {
+  id: ID!
+  sourceId: ID!
+  targetId: ID!
+  dependencyType: String!
+  currentVersion: String
+  latestVersion: String
+  usageFrequency: Int!
+  confidence: Float!
+  securityRiskLevel: String
+  lastConfirmed: String!
+}
+
+"""
+Architectural pattern detected in repositories
+"""
+type Pattern {
+  id: ID!
+  name: String!
+  type: String!  # architectural, microservice, etc.
+  category: String!
+  description: String
+  complexity: String!
+  confidence: Float!
+  repositoryId: ID
+  stakeholders: [String!]!
+  qualityMetrics: QualityMetrics
+  detectedAt: String!
+  lastObservedAt: String!
+  observationCount: Int!
+}
+
+"""
+Quality metrics for patterns or repositories
+"""
+type QualityMetrics {
+  cohesion: Float!
+  coupling: Float!
+  maintainability: Float!
+  testability: Float!
+  complexity: Float!
+}
+
+"""
+Technical debt forecast information
+"""
+type TechnicalDebtForecast {
+  score: Float!
+  trends: [Float!]!
+  hotspots: [String!]!
+  projectedEffort: Int
+  recommendations: [String!]!
+}
+
+"""
+Performance metrics for repository intelligence
+"""
+type PerformanceMetrics {
+  analysisTime: Float!
+  queryEfficiency: Float!
+  cacheHitRate: Float!
+  lastUpdated: String!
+}
+
+"""
+Similarity analysis between repositories
+"""
+type SimilarRepository {
+  repository: Repository!
+  similarityScore: Float!
+  reasons: [String!]!
+  sharedPatterns: [String!]!
+  sizeComparison: String!
+}
+
+"""
+Overall graph statistics
+"""
+type GraphStatistics {
+  repositoryCount: Int!
+  patternCount: Int!
+  dependencyCount: Int!
+  vertexCount: Int!
+  edgeCount: Int!
+  analyzedLanguages: [String!]!
+  lastAnalyzedRepository: String
+  totalAnalysisTime: Float!
+}
