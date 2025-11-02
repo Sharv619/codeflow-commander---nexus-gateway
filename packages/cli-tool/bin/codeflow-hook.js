@@ -11,7 +11,7 @@ import readline from 'readline';
 import { orchestrateReview } from './agents.js';
 
 // Import CLI integration service
-import { indexProject, analyzeDiff } from '../services/cli-integration/dist/index.js';
+import { indexProject, analyzeDiff } from '../lib/cli-integration/dist/index.js';
 
 // Export for use in agents module
 export { callAIProvider };
@@ -368,7 +368,7 @@ program
         console.log(chalk.blue(`🎯 Using pipeline template: ${templateId}`));
 
         // Import simulation engine and config manager dynamically
-        const { PipelineConfigManager } = await import('../services/cli-integration/dist/pipelineConfigs.js');
+        const { PipelineConfigManager } = await import('../lib/cli-integration/dist/pipelineConfigs.js');
         pipelineConfig = PipelineConfigManager.getPipelineById(templateId);
 
         if (!pipelineConfig) {
@@ -401,7 +401,7 @@ program
       const spinner = ora('Running pipeline simulation...').start();
 
       // Import and run simulation engine
-      const { simulationEngine } = await import('../services/cli-integration/dist/simulationEngine.js');
+      const { simulationEngine } = await import('../lib/cli-integration/dist/simulationEngine.js');
       const result = await simulationEngine.executePipeline(pipelineConfig);
 
       spinner.succeed('Simulation completed');

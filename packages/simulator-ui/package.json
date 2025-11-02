@@ -39,6 +39,7 @@
     "@types/react": "^19.2.2",
     "@typescript-eslint/eslint-plugin": "^7.12.0",
     "@typescript-eslint/parser": "^7.12.0",
+    "@vitejs/plugin-react": "^5.1.0",
     "codeflow-hook": "^1.1.0",
     "eslint": "^8.57.0",
     "eslint-plugin-react": "^7.34.2",

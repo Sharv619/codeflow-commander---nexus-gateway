@@ -1,4 +1,5 @@
 {
+  "$schema": "https://json.schemastore.org/package.json",
   "name": "codeflow-commander---nexus-gateway",
   "private": true,
   "workspaces": [

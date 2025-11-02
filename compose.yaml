@@ -21,3 +21,32 @@ services:
       - GEMINI_API_URL=${GEMINI_API_URL}
     ports:
       - "3001:3001"
+
+  query-service:
+    image: codeflowcommandernexusgateway-query-service
+    build:
+      context: ./packages/services/query-service
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - NEPTUNE_ENDPOINT=${NEPTUNE_ENDPOINT}
+      - NEPTUNE_PORT=${NEPTUNE_PORT}
+    ports:
+      - "4000:4000"
+    depends_on:
+      - neptune
+    restart: unless-stopped
+
+  neptune:
+    image: amazon/neptune:latest
+    ports:
+      - "8182:8182"
+    environment:
+      - NEPTUNE_DB_CLUSTER_ID=codeflow-neptune
+    volumes:
+      - neptune_data:/var/lib/neptune
+    restart: unless-stopped
+
+volumes:
+  neptune_data:
