@@ -15,7 +15,7 @@ services:
 
   frontend:
     build:
-      context: .
+      context: ./packages/simulator-ui
       dockerfile: Dockerfile.frontend
       args:
         - GEMINI_API_KEY

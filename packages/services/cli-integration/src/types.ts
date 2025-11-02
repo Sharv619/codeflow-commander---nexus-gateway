@@ -1,4 +1,3 @@
-
 export enum StageStatus {
   Pending = 'PENDING',
   Running = 'RUNNING',

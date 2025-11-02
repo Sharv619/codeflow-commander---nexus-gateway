@@ -2,7 +2,7 @@ services:
   frontend:
     image: codeflowcommandernexusgateway-frontend
     build:
-      context: .
+      context: ./packages/simulator-ui
       dockerfile: Dockerfile.frontend
     ports:
       - "8080:80" # Nginx serves the static frontend
