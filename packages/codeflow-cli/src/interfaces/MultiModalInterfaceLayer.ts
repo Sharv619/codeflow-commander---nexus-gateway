@@ -18,6 +18,19 @@ import { EnterpriseKnowledgeGraph } from '@/services/ekg';
 import { GovernanceSafetyFramework } from '@/validation/GovernanceSafetyFramework';
 import { StorageManager } from '@/storage';
 
+// Import DOM types for GeolocationCoordinates
+declare global {
+  interface GeolocationCoordinates {
+    readonly accuracy: number;
+    readonly altitude: number | null;
+    readonly altitudeAccuracy: number | null;
+    readonly heading: number | null;
+    readonly latitude: number;
+    readonly longitude: number;
+    readonly speed: number | null;
+  }
+}
+
 // Interface Types
 export enum InterfaceType {
   REST_API = 'rest_api',
@@ -213,7 +226,7 @@ export interface IntentClassification {
 
 export interface UserExperienceMetrics {
   responseTime: number;
-  satisfaction?: number;
+  satisfaction?: number | undefined;
   clarity: 'clear' | 'confusing' | 'unclear';
   helpfulness: 'helpful' | 'neutral' | 'unhelpful';
 }
@@ -281,7 +294,7 @@ export class RESTAPIGateway {
 
   private setupRoutes(): void {
     // Health check endpoint
-    this.router.get('/health', (req, res) => {
+    this.router.get('/health', (req: Request, res: Response) => {
       res.json({ status: 'healthy', timestamp: new Date().toISOString() });
     });
 
@@ -323,8 +336,8 @@ export class RESTAPIGateway {
           capabilities: agent.capabilities
         }))
       });
-    } catch (error) {
-      this.errorHandler.handleError(error, { endpoint: '/agents' });
+    } catch (error: unknown) {
+      this.errorHandler.handleError(error as Error, { endpoint: '/agents' });
       res.status(500).json({ error: 'Failed to retrieve agent information' });
     }
   }
@@ -1088,7 +1101,7 @@ export class DesignIngestionService {
         metadata: {
           processedAt: new Date(),
           source: 'figma',
-          version: designRef.version
+          ...(designRef.version && { version: designRef.version })
         }
       };
       return result;

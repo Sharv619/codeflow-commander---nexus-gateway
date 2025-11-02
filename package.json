@@ -10,5 +10,14 @@
     "build": "npm run build --workspace=packages/simulator-ui",
     "test": "npm run test --workspace=packages/simulator-ui",
     "start": "npm run start --workspace=packages/simulator-ui"
+  },
+  "dependencies": {
+    "@types/express": "^5.0.5",
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/graphql-depth-limit": "^1.1.6",
+    "@types/graphql-validation-complexity": "^0.4.4",
+    "@types/gremlin": "^3.6.7"
   }
 }

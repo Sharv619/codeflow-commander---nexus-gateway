@@ -17,8 +17,7 @@
     "lint:fix": "eslint src/**/*.ts tests/**/*.ts --fix",
     "format": "prettier --write src/**/*.ts tests/**/*.ts",
     "type-check": "tsc --noEmit",
-    "prepublishOnly": "npm run build && npm run test",
-    "prepare": "husky install"
+    "prepublishOnly": "npm run build && npm run test"
   },
   "keywords": [
     "ai",
@@ -46,6 +45,7 @@
     "crypto-js": "^4.2.0",
     "diff": "^5.1.0",
     "escape-string-regexp": "^5.0.0",
+    "express": "^4.18.2",
     "fs-extra": "^11.2.0",
     "lru-cache": "^10.1.0",
     "node-cron": "^3.0.3",
@@ -57,6 +57,7 @@
   },
   "devDependencies": {
     "@types/chokidar": "^2.1.0",
+    "@types/express": "^4.17.17",
     "@types/fs-extra": "^11.0.4",
     "@types/jest": "^29.5.8",
     "@types/node": "^20.19.24",
