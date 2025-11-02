@@ -1,17 +1,17 @@
 
-# Codeflow Commander — Complete DevOps & AI Development Tool Suite
+# Codeflow Commander — AI-Powered Development Tools
 
-A comprehensive platform combining an **interactive CI/CD simulator** with a **universal AI-powered Git workflow tool**. Use it to prototype deployment pipelines, simulate code quality gates, and enhance developer workflows with AI-driven code reviews.
+A comprehensive suite of developer tools featuring a **standalone AI-powered CLI tool** for Git workflow enhancement and an **interactive CI/CD simulator** for pipeline prototyping. Transform your development experience with intelligent code analysis and automated quality gates.
 
 ## 🏗️ **Project Overview**
 
-This repository contains two powerful components that work together to revolutionize developer workflows:
+This repository contains two complementary tools designed to enhance developer workflows:
 
-### **1. Interactive CI/CD Simulator** (Main App)
-A containerized React application that simulates complete CI/CD pipelines with live code analysis, allowing teams to prototype and test deployment workflows before implementation.
+### **1. Codeflow Hook CLI Tool** ⭐ (Primary - Standalone npm package)
+A globally installable npm package that brings AI-powered code reviews directly into any developer's git workflow. **Published to npm** and ready for immediate use in any project.
 
-### **2. Codeflow Hook CLI Tool** (`cli-tool/` directory)
-A globally installable npm package that brings AI-powered code reviews directly into any developer's git workflow through automated hooks and direct Gemini AI integration.
+### **2. Interactive CI/CD Simulator** (Development/Prototyping Tool)
+A containerized React application for prototyping and testing CI/CD pipelines with live code analysis, designed for teams building deployment workflows.
 
 ## ✨ **Key Features**
 
@@ -22,11 +22,12 @@ A globally installable npm package that brings AI-powered code reviews directly 
 - **AI Console**: Direct Gemini AI integration for advanced code analysis
 - **Development Workflow**: Hot-reload development with containerized overrides
 
-### **AI Git Workflow Tool**
+### **AI Git Workflow Tool** ⭐
 - **Universal Installation**: `npm install -g codeflow-hook` works on any machine
 - **Multi-Provider AI Support**: Gemini, OpenAI, Claude, or custom AI providers
-- **Automated Git Hooks**: Pre-commit and pre-push quality gates
+- **Automated Git Hooks**: Pre-commit and pre-push quality gates with AI analysis
 - **Cross-Platform**: Works on Linux, macOS, and Windows
+- **Standalone Package**: No server dependencies, works independently
 - **Team-Ready**: Secure API key management and configuration
 
 ## 🆕 **Recent Major Enhancements**
@@ -266,7 +267,7 @@ codeflow-hook --help # View available commands
 
 ### **Short Term**
 - **Plugin System**: Custom analysis rules
-- ✅ **Multi-Provider AI**: Support for Claude, GPT-4 (implemented)
+- ✅ **Multi-Provider AI**: Support for Claude, GPT-4 (implemented in CLI v2.0.0)
 - **Results Dashboard**: Web interface for analysis history
 
 ### **Long Term**
