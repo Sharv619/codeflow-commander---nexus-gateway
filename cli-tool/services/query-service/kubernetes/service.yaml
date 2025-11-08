@@ -1,0 +1,245 @@
+---
+# ------------------------------------------------------------------------------
+# EKG Query Service - Kubernetes Service
+# Exposes the GraphQL API internally within the cluster and externally via Gateway
+# ------------------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: ekg-query-service
+  namespace: codeflow-platform
+  labels:
+    app: ekg-query-service
+    component: query
+    version: v1.0.0
+    environment: production
+    project: codeflow-platform
+    team: backend-services
+  annotations:
+    # AWS Application Load Balancer Controller annotations
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"  # Network Load Balancer for API Gateway
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"  # External access for API Gateway
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
+    # API Gateway integration ready (external access for frontend)
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-path: "/health"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-port: "4000"
+    # Enable cross-zone load balancing for better distribution
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+    # SSL termination (recommended for production APIs)
+    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+    service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "443"
+spec:
+  type: LoadBalancer  # External load balancer for API access
+  ports:
+    - name: graphql-secure
+      port: 443  # HTTPS port for secure API access
+      targetPort: 4000
+      protocol: TCP
+    - name: graphql
+      port: 80  # HTTP port for internal or development access
+      targetPort: 4000
+      protocol: TCP
+  selector:
+    app: ekg-query-service
+
+---
+# ------------------------------------------------------------------------------
+# ConfigMap for GraphQL Service Configuration
+# Contains GraphQL-specific configuration
+# ------------------------------------------------------------------------------
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: graphql-config
+  namespace: codeflow-platform
+  labels:
+    app: ekg-query-service
+    component: query
+    version: v1.0.0
+    environment: production
+    project: codeflow-platform
+spec:
+  data:
+    GRAPHQL_SCHEMA_PATH: "/app/src/schemas/schema.graphql"
+    GRAPHQL_PROTOCOL: "graphql"
+    GRAPHQL_ENDPOINT: "/graphql"
+    QUERY_DEPTH_LIMIT: "10"
+    QUERY_COMPLEXITY_LIMIT: "1000"
+    RATE_LIMIT_WINDOW_MS: "900000"  # 15 minutes
+    RATE_LIMIT_MAX_REQUESTS: "1000"
+
+---
+# ------------------------------------------------------------------------------
+# Horizontal Pod Autoscaler for GraphQL Service
+# Scale based on CPU utilization and GraphQL query complexity
+# ------------------------------------------------------------------------------
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ekg-query-service-hpa
+  namespace: codeflow-platform
+  labels:
+    app: ekg-query-service
+    component: query
+    version: v1.0.0
+    environment: production
+    project: codeflow-platform
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ekg-query-service
+  minReplicas: 2
+  maxReplicas: 8  # GraphQL can handle higher scale
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 85  # Higher memory threshold for GraphQL
+    # Custom metric for GraphQL query complexity (to be implemented)
+    # - type: Pods
+    #   pods:
+    #     metric:
+    #       name: graphql_query_complexity
+    #     target:
+    #       type: AverageValue
+    #       averageValue: 500
+
+---
+# ------------------------------------------------------------------------------
+# Pod Disruption Budget for Query Service
+# Ensures high availability during cluster maintenance (more lenient than ingestion)
+# ------------------------------------------------------------------------------
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ekg-query-service-pdb
+  namespace: codeflow-platform
+  labels:
+    app: ekg-query-service
+    component: query
+    version: v1.0.0
+    environment: production
+    project: codeflow-platform
+spec:
+  minAvailable: 1  # Allow one pod to be unavailable for updates
+  selector:
+    matchLabels:
+      app: ekg-query-service
+
+---
+# ------------------------------------------------------------------------------
+# NetworkPolicy for GraphQL Service Security
+# Controls traffic to and from the query service with stricter ingress rules
+# ------------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ekg-query-service-network-policy
+  namespace: codeflow-platform
+  labels:
+    app: ekg-query-service
+    component: query
+    version: v1.0.0
+    environment: production
+    project: codeflow-platform
+spec:
+  podSelector:
+    matchLabels:
+      app: ekg-query-service
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow GraphQL queries from ingress/API Gateway
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            networking/ingress-provider: "traefik"  # API Gateway/Traefik
+        podSelector:
+          matchLabels:
+            app: "api-gateway"
+      ports:
+        - protocol: TCP
+          port: 4000
+    # Allow internal access from other platform services (CLI, agents)
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            project: codeflow-platform
+      ports:
+        - protocol: TCP
+          port: 4000
+    # Allow frontend access (for development/testing)
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            app: "frontend"
+            component: "web"
+      ports:
+        - protocol: TCP
+          port: 4000
+  egress:
+    # Allow DNS resolution
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow HTTPS/secure connections (Neptune, external APIs if needed)
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 8182  # Neptune
+    # Allow HTTP for potential internal services
+    - to:
+      - namespaceSelector:
+          matchLabels:
+            project: codeflow-platform
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+
+---
+# ------------------------------------------------------------------------------
+# VirtualService for Istio (Optional - if using service mesh)
+# Provide advanced traffic management and observability
+# ------------------------------------------------------------------------------
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: ekg-query-service-virtual-service
+  namespace: codeflow-platform
+  labels:
+    app: ekg-query-service
+    component: query
+spec:
+  hosts:
+    - ekg-query-service.codeflow-platform.svc.cluster.local
+  http:
+    - match:
+        - uri:
+            prefix: "/graphql"
+      route:
+        - destination:
+            host: ekg-query-service
+      timeout: 30s  # GraphQL queries can be complex
+      retries:
+        attempts: 2
+        perTryTimeout: 10s
+      # Enable distributed tracing
+      headers:
+        request:
+          set:
+            x-request-id: "%REQ(X-REQUEST-ID)%"

@@ -10,6 +10,25 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+// Security: Validate required environment variables
+const requiredEnvVars = ['GEMINI_API_KEY', 'GEMINI_API_URL'];
+const missingVars = requiredEnvVars.filter(varName => !process.env[varName] || process.env[varName] === 'YOUR_GEMINI_API_KEY_HERE');
+
+if (missingVars.length > 0) {
+  console.error('❌ SECURITY ERROR: Missing required environment variables:', missingVars.join(', '));
+  console.error('Please set these variables in your .env file before running the application.');
+  process.exit(1);
+}
+
+// Security: Validate API key format (basic check)
+if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.length < 20) {
+  console.error('❌ SECURITY ERROR: GEMINI_API_KEY appears to be invalid or placeholder value');
+  console.error('Please set a valid Gemini API key in your .env file.');
+  process.exit(1);
+}
+
+console.log('✅ Environment variables validated successfully');
+
 const AI_REVIEW_PROMPT_TEMPLATE = `You are "Codeflow", a world-class AI software engineering assistant acting as a Principal Engineer. Your mission is to perform a rigorous and constructive code review on the provided code snippet.
 
 Your analysis must be objective, precise, and focused on creating clean, maintainable, and secure code.

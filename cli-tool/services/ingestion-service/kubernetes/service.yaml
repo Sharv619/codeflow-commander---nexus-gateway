@@ -1,0 +1,225 @@
+---
+# ------------------------------------------------------------------------------
+# EKG Ingestion Service - Kubernetes Service
+# Exposes the ingestion service internally within the cluster
+# ------------------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: ekg-ingestion-service
+  namespace: codeflow-platform  # Matches deployment namespace
+  labels:
+    app: ekg-ingestion-service
+    component: ingestion
+    version: v1.0.0
+    environment: production
+    project: codeflow-platform
+    team: backend-services
+  annotations:
+    # AWS Load Balancer Controller annotations for internal ALB
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"  # Network Load Balancer
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internal"
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-path: "/health"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-port: "3000"
+spec:
+  type: ClusterIP  # Internal service, accessible only within cluster
+  ports:
+    - name: http
+      port: 80          # Service port (internal)
+      targetPort: 3000  # Container port
+      protocol: TCP
+  selector:
+    app: ekg-ingestion-service  # Matches deployment labels
+
+---
+# ------------------------------------------------------------------------------
+# Service Account with IAM Permissions
+# Grants necessary AWS permissions for Neptune and ECR access
+# ------------------------------------------------------------------------------
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ekg-service-account
+  namespace: codeflow-platform
+  labels:
+    app: ekg-ingestion-service
+    component: ingestion
+    version: v1.0.0
+    environment: production
+    project: codeflow-platform
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::<AWS_ACCOUNT_ID>:role/ekg-service-role
+spec:
+  automountServiceAccountToken: true
+
+---
+# ------------------------------------------------------------------------------
+# ConfigMap for Neptune Configuration
+# Contains Neptune endpoint information from Terraform outputs
+# ------------------------------------------------------------------------------
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: neptune-config
+  namespace: codeflow-platform
+  labels:
+    app: ekg-ingestion-service
+    component: ingestion
+    version: v1.0.0
+    environment: production
+    project: codeflow-platform
+spec:
+  data:
+    # These values will be populated from Terraform outputs
+    neptune_endpoint: "codeflow-ekg-cluster.cluster-xxxxxx.us-east-1.neptune.amazonaws.com"
+    neptune_port: "8182"
+    neptune_region: "us-east-1"
+
+---
+# ------------------------------------------------------------------------------
+# Secret for GitHub Credentials
+# Contains GitHub token and webhook secret
+# ------------------------------------------------------------------------------
+apiVersion: v1
+kind: Secret
+metadata:
+  name: github-credentials
+  namespace: codeflow-platform
+  labels:
+    app: ekg-ingestion-service
+    component: ingestion
+    version: v1.0.0
+    environment: production
+    project: codeflow-platform
+  annotations:
+    # Encrypt secret at rest
+    secrets.kubernetes.io/description: "GitHub API credentials for EKG ingestion service"
+type: Opaque
+data:
+  # Base64 encoded values (replace with actual values)
+  token: "Z2hwX0RVRy4uLi4u"  # base64 encoded GitHub token
+  webhook_secret: "d2ViaG9va19zZWNyZXRfa2V5X2hlcmU="  # Webhook secret
+
+---
+# ------------------------------------------------------------------------------
+# Horizontal Pod Autoscaler
+# Automatically scales based on CPU utilization
+# ------------------------------------------------------------------------------
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ekg-ingestion-service-hpa
+  namespace: codeflow-platform
+  labels:
+    app: ekg-ingestion-service
+    component: ingestion
+    version: v1.0.0
+    environment: production
+    project: codeflow-platform
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ekg-ingestion-service
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+
+---
+# ------------------------------------------------------------------------------
+# Pod Disruption Budget
+# Ensures high availability during cluster maintenance
+# ------------------------------------------------------------------------------
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ekg-ingestion-service-pdb
+  namespace: codeflow-platform
+  labels:
+    app: ekg-ingestion-service
+    component: ingestion
+    version: v1.0.0
+    environment: production
+    project: codeflow-platform
+spec:
+  minAvailable: 2  # Always keep at least 2 pods running
+  selector:
+    matchLabels:
+      app: ekg-ingestion-service
+
+---
+# ------------------------------------------------------------------------------
+# NetworkPolicy for Security
+# Controls ingress traffic to the service pods
+# ------------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ekg-ingestion-service-network-policy
+  namespace: codeflow-platform
+  labels:
+    app: ekg-ingestion-service
+    component: ingestion
+    version: v1.0.0
+    environment: production
+    project: codeflow-platform
+spec:
+  podSelector:
+    matchLabels:
+      app: ekg-ingestion-service
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow webhook traffic from ingress controllers/API gateways
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            networking/ingress-provider: "traefik"  # Or your ingress controller
+      ports:
+        - protocol: TCP
+          port: 3000
+    # Allow internal cluster communication
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            project: codeflow-platform
+      ports:
+        - protocol: TCP
+          port: 3000
+  egress:
+    # Allow DNS resolution
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow HTTPS/secure connections (GitHub, Neptune)
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 8182  # Neptune
+    # Allow HTTP for potential internal services
+    - to:
+      - namespaceSelector:
+          matchLabels:
+            project: codeflow-platform
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
