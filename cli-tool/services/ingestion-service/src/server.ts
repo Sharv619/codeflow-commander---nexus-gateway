@@ -59,11 +59,25 @@ class EKGMicroservice {
    * Configure Express middleware
    */
   private setupMiddleware(): void {
-    // CORS configuration for webhook endpoints
+    // CORS configuration for webhook endpoints - SECURITY: Restrict origins
+    const allowedOrigins = process.env.CORS_ORIGIN ?
+      process.env.CORS_ORIGIN.split(',') :
+      ['https://github.com', 'https://api.github.com']; // Default to GitHub only
+
     this.app.use(cors({
-      origin: process.env.CORS_ORIGIN || '*',
+      origin: (origin, callback) => {
+        // Allow requests with no origin (mobile apps, etc.)
+        if (!origin) return callback(null, true);
+
+        if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+          return callback(null, true);
+        } else {
+          return callback(new Error('Not allowed by CORS'));
+        }
+      },
       methods: ['GET', 'POST'],
-      allowedHeaders: ['Content-Type', 'X-GitHub-Delivery', 'X-GitHub-Event']
+      allowedHeaders: ['Content-Type', 'X-GitHub-Delivery', 'X-GitHub-Event', 'X-Hub-Signature-256'],
+      credentials: false // Webhooks don't need credentials
     }));
 
     // Security headers

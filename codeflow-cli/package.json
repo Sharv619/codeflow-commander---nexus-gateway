@@ -1,6 +1,6 @@
 {
   "name": "codeflow-cli",
-  "version": "3.0.0",
+  "version": "3.0.3",
   "description": "Generative Engineering Co-Pilot for Code Review and Improvement",
   "main": "bin/codeflow.js",
   "bin": {

@@ -23,9 +23,7 @@ class FeedbackLearningEngine {
     this.logger = logger || defaultLogger;
   }
 
-  /**
-   * Process developer feedback for learning
-   */
+  /** Process developer feedback for learning */
   async processFeedback(feedback: DeveloperFeedback): Promise<LearningInsights> {
     this.logger.debug('Processing developer feedback', { feedbackId: feedback.id });
 
@@ -62,9 +60,6 @@ class FeedbackLearningEngine {
     return insights;
   }
 
-  /**
-   * Get personalized effectiveness data for a developer
-   */
   getDeveloperEffectiveness(developerId: string): DeveloperEffectiveness {
     const devFeedback = this.feedbackHistory.filter(f => f.developerId === developerId);
 
@@ -73,7 +68,7 @@ class FeedbackLearningEngine {
     const averageResponseTime = devFeedback.reduce((sum, f) => sum + f.timeToReview, 0) / devFeedback.length;
 
     // Calculate improvement trends
-    const recentFeedback = devFeedback.slice(-20); // Last 20 feedback instances
+    const recentFeedback = devFeedback.slice(-20); 
     const recentAcceptance = recentFeedback.filter(f => f.accepted).length / recentFeedback.length;
 
     return {
@@ -485,7 +480,7 @@ class BehaviorAdaptationEngine {
   }
 
   /**
-   * Apply adaptation based on learning insights
+   * Apply adaptation based on learning insights/home/lade/GitHub/codeflow-commander---nexus-gateway/codeflow-cli
    */
   applyAdaptation(insights: LearningInsights): AdaptationResult {
     this.logger.info('Applying learning adaptation', {

@@ -12,7 +12,8 @@ import { indexProject } from './rag.js';
 import { orchestrateReview } from './agents.js';
 
 // Import CLI integration service
-import { indexProject, analyzeDiff } from '../services/cli-integration/src/index.js';
+import { analyzeDiff } from '../services/cli-integration.js';
+import { RAGSystem } from '../services/rag-system.js';
 
 // Export for use in agents module
 export { callAIProvider };
@@ -340,6 +341,132 @@ program
 
     } catch (error) {
       console.log(chalk.red(`❌ Analysis error: ${error.message}`));
+      process.exit(1);
+    }
+  });
+
+// RAG commands for Phase 4 Enterprise Knowledge Graph
+program
+  .command('rag-index')
+  .description('Index repository for RAG (Retrieval-Augmented Generation)')
+  .option('--dry-run', 'Show what would be indexed without actually indexing')
+  .option('--include <patterns>', 'File patterns to include (comma-separated)', '**/*.js,**/*.ts,**/*.tsx,**/*.jsx,**/*.json,**/*.md')
+  .option('--exclude <patterns>', 'File patterns to exclude (comma-separated)', '**/node_modules/**,**/dist/**,**/build/**,**/.git/**')
+  .action(async (options) => {
+    try {
+      const spinner = ora('Initializing RAG system...').start();
+      const ragSystem = new RAGSystem();
+      await ragSystem.initialize();
+      spinner.succeed('RAG system ready');
+
+      const includePatterns = options.include.split(',');
+      const excludePatterns = options.exclude.split(',');
+
+      const result = await ragSystem.indexRepository('.', {
+        includePatterns,
+        excludePatterns,
+        dryRun: options.dryRun
+      });
+
+      if (options.dryRun) {
+        console.log(chalk.blue(`📋 Would index ${result.files} files`));
+      } else {
+        console.log(chalk.green(`✅ Repository indexed for RAG!`));
+        console.log(chalk.gray(`   📊 Stats: ${result.files} files, ${result.chunks} chunks, ${result.vectors} vectors`));
+      }
+
+    } catch (error) {
+      console.log(chalk.red(`❌ RAG indexing failed: ${error.message}`));
+      process.exit(1);
+    }
+  });
+
+program
+  .command('rag-analyze')
+  .description('Analyze code with RAG context enhancement')
+  .argument('[code]', 'Code to analyze')
+  .option('--query <query>', 'Custom context query (auto-generated if not provided)')
+  .option('--limit <number>', 'Max context chunks to retrieve', '5')
+  .action(async (code, options) => {
+    try {
+      if (!code) {
+        console.log(chalk.red('❌ Please provide code to analyze'));
+        console.log(chalk.gray('Usage: codeflow-hook rag-analyze "your code here"'));
+        process.exit(1);
+      }
+
+      const spinner = ora('Initializing RAG system...').start();
+      const ragSystem = new RAGSystem();
+      await ragSystem.initialize();
+      spinner.succeed('RAG system ready');
+
+      console.log(chalk.blue('🧠 Analyzing code with RAG context...'));
+
+      const analysis = await ragSystem.analyzeWithContext(code, options.query, {
+        limit: parseInt(options.limit)
+      });
+
+      console.log(chalk.green('📋 Retrieved Context:'));
+      analysis.retrievedContext.forEach((ctx, i) => {
+        console.log(chalk.gray(`   ${i + 1}. ${ctx.filePath} (score: ${(ctx.score * 100).toFixed(1)}%)`));
+      });
+      console.log();
+
+      // Now call AI with enhanced context
+      const configPath = path.join(os.homedir(), '.codeflow-hook', 'config.json');
+      if (!fs.existsSync(configPath)) {
+        console.log(chalk.red('❌ No AI configuration found. Run: codeflow-hook config -k <api-key>'));
+        process.exit(1);
+      }
+
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      const aiResponse = await callAIProvider(config, analysis.enhancedPrompt);
+
+      console.log(chalk.blue('🤖 AI Analysis with RAG Context:'));
+      console.log(aiResponse);
+
+    } catch (error) {
+      console.log(chalk.red(`❌ RAG analysis failed: ${error.message}`));
+      process.exit(1);
+    }
+  });
+
+program
+  .command('rag-status')
+  .description('Show RAG system status and statistics')
+  .action(async () => {
+    try {
+      const ragSystem = new RAGSystem();
+      await ragSystem.initialize();
+
+      const stats = ragSystem.getStats();
+      console.log(chalk.blue('🧠 RAG System Status'));
+      console.log();
+      console.log(chalk.gray(`Vector Store: ${stats.vectorStore.indexPath}`));
+      console.log(chalk.gray(`Vectors: ${stats.vectorStore.vectorCount}`));
+      console.log(chalk.gray(`Metadata: ${stats.vectorStore.metadataCount}`));
+      console.log(chalk.gray(`Initialized: ${stats.vectorStore.initialized ? 'Yes' : 'No'}`));
+      console.log(chalk.gray(`Chunk Size: ${stats.chunkSize} chars`));
+      console.log(chalk.gray(`Overlap: ${stats.overlap} chars`));
+
+    } catch (error) {
+      console.log(chalk.red(`❌ Failed to get RAG status: ${error.message}`));
+      process.exit(1);
+    }
+  });
+
+program
+  .command('rag-clear')
+  .description('Clear the RAG index and start fresh')
+  .action(async () => {
+    try {
+      const spinner = ora('Clearing RAG index...').start();
+      const ragSystem = new RAGSystem();
+      await ragSystem.initialize();
+      await ragSystem.clearIndex();
+      spinner.succeed('RAG index cleared');
+    } catch (error) {
+      console.log(chalk.red(`❌ Failed to clear RAG index: ${error.message}`));
       process.exit(1);
     }
   });
