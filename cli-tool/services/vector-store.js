@@ -1,9 +1,11 @@
-import pkg from 'faiss-node';
-const { FaissStore } = pkg;
 import { pipeline } from '@xenova/transformers';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+
+// Dynamically import the appropriate vector store implementation
+let VectorStoreImpl = null;
+let isUsingFaiss = false;
 
 class VectorStore {
   constructor(indexPath = null) {
@@ -22,19 +24,41 @@ class VectorStore {
       console.log('🔄 Initializing sentence transformer...');
       this.extractor = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
 
-      // Initialize FAISS index
-      console.log('🔄 Initializing FAISS vector store...');
-      this.store = new FaissStore();
+      // Initialize vector store based on FEATURE_FAISS environment variable
+      const useFaiss = process.env.FEATURE_FAISS === 'true';
+
+      if (useFaiss) {
+        try {
+          console.log('🔄 Attempting to initialize FAISS vector store...');
+          const pkg = await import('faiss-node');
+          const { FaissStore } = pkg;
+          this.store = new FaissStore();
+          isUsingFaiss = true;
+          console.log('✅ FAISS vector store initialized');
+        } catch (faissError) {
+          console.warn('⚠️ FAISS not available, falling back to in-memory store:', faissError.message);
+          await this.initializeFallbackStore();
+        }
+      } else {
+        console.log('🔄 Using fallback in-memory vector store');
+        await this.initializeFallbackStore();
+      }
 
       // Load existing index if available
       await this.loadIndex();
 
       this.initialized = true;
-      console.log('✅ Vector store initialized successfully');
+      console.log(`✅ Vector store initialized successfully (${isUsingFaiss ? 'FAISS' : 'Fallback'})`);
     } catch (error) {
       console.error('❌ Failed to initialize vector store:', error.message);
       throw error;
     }
+  }
+
+  async initializeFallbackStore() {
+    const { VectorStoreFallback } = await import('./vector-store-fallback.js');
+    this.store = new VectorStoreFallback(this.indexPath);
+    isUsingFaiss = false;
   }
 
   async generateEmbedding(text) {
@@ -60,18 +84,24 @@ class VectorStore {
     }
 
     try {
-      // Add vectors to FAISS index
-      await this.store.addVectors(vectors);
-
-      // Store metadata
-      metadata.forEach((meta, index) => {
-        this.metadata.set(vectors.length - metadata.length + index, meta);
-      });
+      if (isUsingFaiss) {
+        // FAISS interface: addVectors expects array of vectors and metadata
+        await this.store.addVectors(vectors);
+        // Store metadata separately for FAISS
+        metadata.forEach((meta, index) => {
+          this.metadata.set(vectors.length - metadata.length + index, meta);
+        });
+      } else {
+        // Fallback interface: addBatch expects vectors and metadata arrays
+        await this.store.addBatch(vectors, metadata);
+      }
 
       // Save index to disk
-      await this.saveIndex();
+      if (isUsingFaiss) {
+        await this.saveIndex();
+      }
 
-      console.log(`✅ Added ${vectors.length} vectors to index`);
+      console.log(`✅ Added ${vectors.length} vectors to ${isUsingFaiss ? 'FAISS' : 'fallback'} index`);
     } catch (error) {
       console.error('❌ Failed to add vectors:', error.message);
       throw error;
@@ -84,15 +114,21 @@ class VectorStore {
     }
 
     try {
-      // Search for similar vectors
-      const results = await this.store.similaritySearch(queryVector, limit);
+      let results;
+      if (isUsingFaiss) {
+        // FAISS interface
+        const faissResults = await this.store.similaritySearch(queryVector, limit);
+        results = faissResults.map(result => ({
+          ...result,
+          metadata: this.metadata.get(result.index) || {},
+          score: result.score
+        }));
+      } else {
+        // Fallback interface already includes metadata
+        results = await this.store.search(queryVector, limit);
+      }
 
-      // Attach metadata to results
-      return results.map(result => ({
-        ...result,
-        metadata: this.metadata.get(result.index) || {},
-        score: result.score
-      }));
+      return results;
     } catch (error) {
       console.error('❌ Failed to search vectors:', error.message);
       throw error;
@@ -148,15 +184,27 @@ class VectorStore {
 
   async clearIndex() {
     try {
-      this.store = new FaissStore();
-      this.metadata.clear();
+      if (isUsingFaiss) {
+        try {
+          const pkg = await import('faiss-node');
+          const { FaissStore } = pkg;
+          this.store = new FaissStore();
+        } catch (faissError) {
+          console.warn('⚠️ FAISS not available during clear, using fallback');
+          await this.initializeFallbackStore();
+        }
+        this.metadata.clear();
 
-      // Remove index files
-      const indexFile = path.join(this.indexPath, 'faiss.index');
-      const metadataFile = path.join(this.indexPath, 'metadata.json');
+        // Remove index files
+        const indexFile = path.join(this.indexPath, 'faiss.index');
+        const metadataFile = path.join(this.indexPath, 'metadata.json');
 
-      if (fs.existsSync(indexFile)) fs.unlinkSync(indexFile);
-      if (fs.existsSync(metadataFile)) fs.unlinkSync(metadataFile);
+        if (fs.existsSync(indexFile)) fs.unlinkSync(indexFile);
+        if (fs.existsSync(metadataFile)) fs.unlinkSync(metadataFile);
+      } else {
+        // Clear fallback store
+        await this.store.clear();
+      }
 
       console.log('🗑️ Vector index cleared');
     } catch (error) {
@@ -166,12 +214,26 @@ class VectorStore {
   }
 
   getStats() {
-    return {
-      vectorCount: this.store ? this.store.ntotal() : 0,
-      metadataCount: this.metadata.size,
-      indexPath: this.indexPath,
-      initialized: this.initialized
-    };
+    if (!this.store) {
+      return {
+        vectorCount: 0,
+        metadataCount: 0,
+        indexPath: this.indexPath,
+        initialized: this.initialized
+      };
+    }
+
+    if (isUsingFaiss) {
+      return {
+        vectorCount: this.store.ntotal(),
+        metadataCount: this.metadata.size,
+        indexPath: this.indexPath,
+        initialized: this.initialized
+      };
+    } else {
+      // Fallback store stats
+      return this.store.stats();
+    }
   }
 }
 
