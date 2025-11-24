@@ -33,7 +33,8 @@ export class AuthMiddleware {
       role: user.role,
     };
 
-    return jwt.sign(payload, this.JWT_SECRET, {
+    return jwt.sign(payload as object, this.JWT_SECRET as string, {
+      algorithm: 'HS256',
       expiresIn: this.JWT_EXPIRES_IN,
       issuer: 'codeflow-backend',
       audience: 'codeflow-client',
@@ -49,7 +50,8 @@ export class AuthMiddleware {
       type: 'refresh',
     };
 
-    return jwt.sign(payload, this.JWT_SECRET, {
+    return jwt.sign(payload as object, this.JWT_SECRET as string, {
+      algorithm: 'HS256',
       expiresIn: this.REFRESH_TOKEN_EXPIRES_IN,
       issuer: 'codeflow-backend',
       audience: 'codeflow-client',
@@ -186,7 +188,7 @@ export class AuthMiddleware {
       next();
     } catch (error) {
       // For optional auth, we ignore auth errors and continue
-      console.warn('Optional authentication failed:', error.message);
+      console.warn('Optional authentication failed:', error instanceof Error ? error.message : 'Unknown error');
       next();
     }
   };
