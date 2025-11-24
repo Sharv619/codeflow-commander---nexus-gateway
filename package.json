@@ -15,14 +15,17 @@
     "compose:up": "docker compose up --build -d",
     "compose:down": "docker compose down",
     "compose:logs": "docker compose logs -f",
-    "compose:build": "docker compose build"
+    "compose:build": "docker compose build",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
+    "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
+    "format": "prettier --write .",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@notionhq/client": "^5.4.0",
     "body-parser": "^1.20.2",
     "cors": "^2.8.5",
-    "dotenv": "^17.2.3",
-    "express": "^4.21.2",
+    "express": "^4.19.2",
     "express-rate-limit": "^6.7.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
@@ -45,14 +48,5 @@
     "ts-jest": "^29.1.4",
     "typescript": "~5.4.5",
     "vite": "^5.3.1"
-  },
-  "description": "A comprehensive platform combining an **interactive CI/CD simulator** with a **universal AI-powered Git workflow tool**. Use it to prototype deployment pipelines, simulate code quality gates, and enhance developer workflows with AI-driven code reviews.",
-  "main": "check-notion-properties.js",
-  "directories": {
-    "doc": "docs",
-    "test": "tests"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC"
+  }
 }

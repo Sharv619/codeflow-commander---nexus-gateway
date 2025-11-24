@@ -1,17 +1,32 @@
 
-# Codeflow Commander — Complete DevOps & AI Development Tool Suite
+# Codeflow Commander — Open Source AI-Powered Development Tool Suite
 
-A comprehensive platform combining an **interactive CI/CD simulator** with a **universal AI-powered Git workflow tool**. Use it to prototype deployment pipelines, simulate code quality gates, and enhance developer workflows with AI-driven code reviews.
+A comprehensive, **open source** platform combining an **interactive CI/CD simulator** with a **self-contained AI-powered Git workflow tool**. The entire system works locally without external API dependencies, making it privacy-focused and enterprise-ready.
 
-## 🏗️ **Project Overview**
+## 🏗️ **Architecture Overview**
 
-This repository contains two powerful components that work together to revolutionize developer workflows:
+This repository contains a complete AI development ecosystem with three main components:
 
-### **1. Interactive CI/CD Simulator** (Main App)
-A containerized React application that simulates complete CI/CD pipelines with live code analysis, allowing teams to prototype and test deployment workflows before implementation.
+### **1. CLI Tool** (`cli-tool/` directory)
+A **self-contained npm package** that provides AI-powered Git workflow integration:
+- **Local RAG System**: Indexes and retrieves codebase context without external calls
+- **Project Knowledge Graph**: Learns and applies coding patterns from your project
+- **Multi-Provider AI**: Supports Gemini, OpenAI, Claude with local API key management
+- **Compliance Engine**: Built-in GDPR, SOX, HIPAA compliance validation
+- **Git Automation**: Pre-commit and pre-push hooks for quality gates
 
-### **2. Codeflow Hook CLI Tool** (`cli-tool/` directory)
-A globally installable npm package that brings AI-powered code reviews directly into any developer's git workflow through automated hooks and direct Gemini AI integration.
+### **2. Enterprise Framework** (`codeflow-cli/` directory)
+Advanced TypeScript components for AI agents and governance:
+- **AI Agent Architecture**: Modular system for intelligent code analysis
+- **Knowledge Graph Engine**: EKG (Enterprise Knowledge Graph) with semantic relationships
+- **Governance Safety Framework**: Enterprise-grade security and compliance controls
+- **Pattern Recognition**: Learns from codebase patterns and applies best practices
+
+### **3. CI/CD Simulator** (Frontend)
+Interactive React application for pipeline testing and visualization:
+- **Container Orchestration**: Docker Compose with Nginx reverse proxy
+- **Real-time Analysis**: Live code quality feedback during development
+- **AI Integration**: Direct AI console for code review and suggestions
 
 ## ✨ **Key Features**
 

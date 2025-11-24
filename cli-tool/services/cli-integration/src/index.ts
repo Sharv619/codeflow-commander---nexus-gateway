@@ -194,9 +194,9 @@ export class CLIIntegrationService {
   }
 
   /**
-   * Analyze code diff with EKG context enhancement
+   * Analyze code diff with local knowledge and pattern analysis
    *
-   * Sends diff to Query Service for EKG-enhanced analysis instead of local RAG
+   * Uses local RAG and knowledge graph for context-aware analysis
    */
   async analyzeDiff(diffContent: string, options: {
     legacy?: boolean;
@@ -206,8 +206,8 @@ export class CLIIntegrationService {
     analysis: any;
     message: string;
     stats?: {
-      ekg_queries: number;
-      similar_repos_found: number;
+      local_patterns_found: number;
+      context_chunks_used: number;
       analysis_time: number;
     }
   }> {
@@ -222,17 +222,7 @@ export class CLIIntegrationService {
         };
       }
 
-      if (options.legacy) {
-        // Fallback to local analysis (would integrate with existing agents)
-        logger.warn('Legacy mode requested - falling back to local analysis');
-        return {
-          success: false,
-          analysis: null,
-          message: 'Legacy mode not yet implemented with EKG integration'
-        };
-      }
-
-      logger.info('Analyzing diff with EKG context enhancement', {
+      logger.info('Analyzing diff with local knowledge enhancement', {
         diffSize: diffContent.length,
         lines: diffContent.split('\n').length
       });
@@ -248,28 +238,28 @@ export class CLIIntegrationService {
         };
       }
 
-      // Query EKG for context on affected files and patterns
-      const ekgContext = await this.getEKGContext(diffAnalysis);
+      // Get local knowledge context
+      const localContext = await this.getLocalKnowledgeContext(diffAnalysis);
 
-      // Generate enhanced analysis with EKG data
-      const enhancedAnalysis = await this.generateEKGEnhancedAnalysis(diffAnalysis, ekgContext);
+      // Generate enhanced analysis with local data
+      const enhancedAnalysis = await this.generateLocalEnhancedAnalysis(diffAnalysis, localContext);
 
       const analysisTime = Date.now() - startTime;
 
-      logger.info('Diff analysis completed with EKG enhancement', {
+      logger.info('Diff analysis completed with local enhancement', {
         affectedFiles: diffAnalysis.files.length,
-        ekgQueries: ekgContext.queriesMade,
-        similarReposFound: ekgContext.similarRepositories?.length || 0,
+        patternsFound: localContext.patternsFound,
+        contextChunks: localContext.contextChunks.length,
         analysisTime
       });
 
       return {
         success: true,
         analysis: enhancedAnalysis,
-        message: 'Diff analyzed with EKG context enhancement',
+        message: 'Diff analyzed with local knowledge enhancement',
         stats: {
-          ekg_queries: ekgContext.queriesMade,
-          similar_repos_found: ekgContext.similarRepositories?.length || 0,
+          local_patterns_found: localContext.patternsFound,
+          context_chunks_used: localContext.contextChunksUsed,
           analysis_time: analysisTime
         }
       };
@@ -283,8 +273,8 @@ export class CLIIntegrationService {
         analysis: null,
         message: `Diff analysis failed: ${errorMessage}`,
         stats: {
-          ekg_queries: 0,
-          similar_repos_found: 0,
+          local_patterns_found: 0,
+          context_chunks_used: 0,
           analysis_time: Date.now() - startTime
         }
       };
@@ -370,105 +360,294 @@ export class CLIIntegrationService {
   }
 
   /**
-   * Query EKG for context on affected files
+   * Get local knowledge context using RAG and project knowledge
    */
-  private async getEKGContext(diffAnalysis: any): Promise<{
-    queriesMade: number;
-    repositoryIntelligence?: any;
-    similarRepositories: any[];
-    patterns: any[];
+  private async getLocalKnowledgeContext(diffAnalysis: any): Promise<{
+    patternsFound: number;
+    contextChunks: any[];
+    contextChunksUsed: number;
   }> {
-    let queriesMade = 0;
+    const contextChunks: any[] = [];
+    let patternsFound = 0;
 
     try {
-      // Get current repository information
-      const repoInfo = await this.getRepositoryInfo();
-      const repositoryId = this.generateRepositoryId(repoInfo.fullName);
+      // Generate context query from changes
+      const contextQuery = this.generateContextQueryFromDiff(diffAnalysis);
 
-      // Query repository intelligence if repository exists in EKG
-      let repositoryIntelligence = null;
-      try {
-        const response = await this.makeGraphQLRequest(
-          `
-          query GetRepositoryIntelligence($repoId: ID!) {
-            repositoryIntelligence(repositoryId: $repoId) {
-              repository {
-                id name fullName language
-              }
-              patterns {
-                name type confidence category
-              }
-              dependencies {
-                dependencyType currentVersion confidence
-              }
-            }
+      // Use local RAG system to retrieve context
+      const { RAGSystem } = await import('../rag-system.js');
+      const ragSystem = new RAGSystem();
+      await ragSystem.initialize();
+
+      // Get relevant context from local knowledge base
+      const retrievedContext = await ragSystem.retrieveContext(contextQuery, {
+        limit: 5,
+        minScore: 0.6
+      });
+
+      // Convert to consistent format
+      retrievedContext.forEach(ctx => {
+        contextChunks.push({
+          content: ctx.content,
+          metadata: {
+            filePath: ctx.filePath,
+            language: ctx.language,
+            score: ctx.score
           }
-          `,
-          { repoId: repositoryId }
-        );
-        repositoryIntelligence = response.data?.repositoryIntelligence;
-        queriesMade++;
-      } catch (error) {
-        logger.warn('Repository not found in EKG, continuing analysis', { repositoryId });
-      }
+        });
+      });
 
-      // Find similar repositories and patterns for context
-      let similarRepositories: any[] = [];
-      try {
-        const response = await this.makeGraphQLRequest(
-          `
-          query FindSimilarRepositories($repoId: ID!, $limit: Int) {
-            similarRepositories(repositoryId: $repoId, limit: $limit) {
-              repository { name fullName language }
-              similarityScore reasons
-              sharedPatterns sizeComparison
-            }
+      // Get patterns from local project knowledge
+      const projectPatterns = await this.getLocalProjectPatterns(diffAnalysis);
+      patternsFound = projectPatterns.length;
+
+      // Add patterns to context
+      projectPatterns.forEach(pattern => {
+        contextChunks.push({
+          content: `Project Pattern: ${pattern.name} - ${pattern.description}`,
+          metadata: {
+            type: 'pattern',
+            category: pattern.category,
+            confidence: pattern.confidence,
+            score: 0.9
           }
-          `,
-          { repoId: repositoryId, limit: 5 }
-        );
-        similarRepositories = response.data?.similarRepositories || [];
-        queriesMade++;
-      } catch (error) {
-        logger.warn('Could not fetch similar repositories', { error: this.formatError(error) });
-      }
-
-      // Get enterprise-wide patterns that might be relevant
-      let patterns: any[] = [];
-      try {
-        const languages = [...new Set(diffAnalysis.files.map((f: any) => f.language))];
-
-        const response = await this.makeGraphQLRequest(
-          `
-          query GetRelevantPatterns($language: String, $limit: Int) {
-            patterns(language: $language, minConfidence: 0.7, limit: $limit) {
-              name type category confidence observationCount
-            }
-          }
-          `,
-          { language: languages[0], limit: 10 }
-        );
-        patterns = response.data?.patterns || [];
-        queriesMade++;
-      } catch (error) {
-        logger.warn('Could not fetch patterns', { error: this.formatError(error) });
-      }
-
-      return {
-        queriesMade,
-        repositoryIntelligence,
-        similarRepositories,
-        patterns
-      };
+        });
+      });
 
     } catch (error) {
-      logger.error('EKG context retrieval failed', { error: this.formatError(error) });
-      return {
-        queriesMade,
-        similarRepositories: [],
-        patterns: []
-      };
+      logger.warn('Failed to get local knowledge context', { error: this.formatError(error) });
     }
+
+    return {
+      patternsFound,
+      contextChunks,
+      contextChunksUsed: contextChunks.length
+    };
+  }
+
+  /**
+   * Generate analysis enhanced with local knowledge
+   */
+  private async generateLocalEnhancedAnalysis(diffAnalysis: any, localContext: any): Promise<any> {
+    // Analyze changes with local context
+    const issues: any[] = [];
+    const recommendations: any[] = [];
+    let patternsApplied = 0;
+
+    // Check against learned patterns
+    if (localContext.contextChunks) {
+      const patternChunks = localContext.contextChunks.filter(chunk =>
+        chunk.metadata?.type === 'pattern' &&
+        chunk.metadata?.score > 0.7
+      );
+
+      patternsFound = patternChunks.length;
+
+      for (const pattern of patternChunks) {
+        // Check if pattern is relevant to changed files
+        const relevantFiles = diffAnalysis.files.filter((file: any) =>
+          this.isPatternRelevantToFile(pattern, file)
+        );
+
+        if (relevantFiles.length > 0) {
+          recommendations.push({
+            type: 'local_pattern_alignment',
+            description: pattern.content,
+            severity: 'info',
+            file: relevantFiles[0].path,
+            patternConfidence: pattern.metadata.confidence
+          });
+          patternsApplied++;
+        }
+      }
+    }
+
+    // Generate context-aware recommendations
+    for (const file of diffAnalysis.files) {
+      // Check for security implications
+      if (file.additions > 0 && this.isSensitiveFileType(file.language)) {
+        issues.push({
+          type: 'security_review_required',
+          description: `Security review recommended for changes to ${file.path}`,
+          severity: 'medium',
+          file: file.path
+        });
+      }
+
+      // Check for testing requirements
+      if (this.looksLikeCodeChange(file) && !this.hasTestsInDiff(diffAnalysis)) {
+        recommendations.push({
+          type: 'testing_recommended',
+          description: `Consider adding tests for ${file.path}`,
+          severity: 'info',
+          file: file.path
+        });
+      }
+    }
+
+    // Repository context awareness
+    const repoInfo = await this.getRepositoryInfo().catch(() => null);
+    if (repoInfo) {
+      recommendations.push({
+        type: 'repository_context',
+        description: `Changes in repository ${repoInfo.name} (${diffAnalysis.summary})`,
+        severity: 'info'
+      });
+    }
+
+    return {
+      summary: {
+        totalFiles: diffAnalysis.files.length,
+        totalAdditions: diffAnalysis.totalAdditions,
+        totalDeletions: diffAnalysis.totalDeletions,
+        localEnhanced: true,
+        patternsApplied,
+        contextChunksUsed: localContext.contextChunksUsed
+      },
+      files: diffAnalysis.files.map(this.enhanceFileWithContext.bind(this)),
+      issues,
+      recommendations,
+      local_context: {
+        patterns_found: localContext.patternsFound,
+        context_chunks_used: localContext.contextChunksUsed,
+        knowledge_base_enhanced: true
+      }
+    };
+  }
+
+  /**
+   * Generate context query from diff analysis
+   */
+  private generateContextQueryFromDiff(diffAnalysis: any): string {
+    const keyTerms: string[] = [];
+    const fileTypes = new Set<string>();
+
+    // Extract keywords from changed files
+    diffAnalysis.files.forEach((file: any) => {
+      fileTypes.add(file.language);
+      // Extract meaningful file name parts
+      const parts = file.path.replace(/\.[^/.]+$/, "").split(/[\/\-_]/);
+      parts.forEach((part: string) => {
+        if (part.length > 3 && !['src', 'lib', 'test', 'spec'].includes(part)) {
+          keyTerms.push(part);
+        }
+      });
+    });
+
+    // Combine with change types
+    const changeType = diffAnalysis.totalAdditions > diffAnalysis.totalDeletions * 2 ?
+      "new feature" : "code modification";
+
+    const fileTypeList = Array.from(fileTypes).join(', ');
+
+    return `${changeType} in ${fileTypeList} files: ${keyTerms.slice(0, 5).join(' ')}`.trim();
+  }
+
+  /**
+   * Get patterns from local project knowledge
+   */
+  private async getLocalProjectPatterns(diffAnalysis: any): Promise<any[]> {
+    const patterns: any[] = [];
+
+    try {
+      // Import local knowledge services
+      const { initGraphService } = await import('../../src/knowledge/graphService.js');
+
+      const graphService = await initGraphService();
+
+      if (graphService && typeof graphService.findPatterns === 'function') {
+        // Find patterns related to the changed files
+        const languages = [...new Set(diffAnalysis.files.map((f: any) => f.language))];
+        const relatedPatterns = await graphService.findPatterns({
+          languages,
+          categories: ['architecture', 'security', 'performance']
+        });
+
+        patterns.push(...relatedPatterns);
+      }
+    } catch (error) {
+      logger.debug('Local pattern retrieval failed', { error: this.formatError(error) });
+    }
+
+    // Add fallback patterns based on file types
+    if (patterns.length === 0) {
+      const hasJSFiles = diffAnalysis.files.some((f: any) => f.language === 'javascript');
+      const hasTSFiles = diffAnalysis.files.some((f: any) => f.language === 'typescript');
+
+      if (hasJSFiles || hasTSFiles) {
+        patterns.push({
+          name: 'JavaScript/TypeScript Best Practices',
+          category: 'code_quality',
+          description: 'Consider using ESLint for code quality checks',
+          confidence: 0.8
+        });
+      }
+    }
+
+    return patterns;
+  }
+
+  /**
+   * Check if a pattern is relevant to a file
+   */
+  private isPatternRelevantToFile(pattern: any, file: any): boolean {
+    // Simple relevance check - can be made more sophisticated
+    if (pattern.metadata?.category === 'security' && this.isSensitiveFileType(file.language)) {
+      return true;
+    }
+
+    if (pattern.metadata?.language && pattern.metadata.language === file.language) {
+      return true;
+    }
+
+    // Pattern name contains keywords from file
+    const fileKeywords = file.path.toLowerCase().split(/[-_\.\/]/);
+    const patternKeywords = pattern.content.toLowerCase().split(/\s+/);
+
+    return fileKeywords.some((keyword: string) =>
+      keyword.length > 3 && patternKeywords.some((pkw: string) => pkw.includes(keyword))
+    );
+  }
+
+  /**
+   * Check if file type is security-sensitive
+   */
+  private isSensitiveFileType(language: string): boolean {
+    return ['javascript', 'typescript', 'python', 'java', 'php', 'go', 'rust'].includes(language);
+  }
+
+  /**
+   * Check if diff contains code changes
+   */
+  private looksLikeCodeChange(file: any): boolean {
+    return ['javascript', 'typescript', 'python', 'java', 'php', 'go', 'rust', 'cpp', 'c'].includes(file.language);
+  }
+
+  /**
+   * Check if diff includes test files
+   */
+  private hasTestsInDiff(diffAnalysis: any): boolean {
+    return diffAnalysis.files.some((file: any) =>
+      file.path.includes('test') ||
+      file.path.includes('spec') ||
+      file.path.endsWith('.test.js') ||
+      file.path.endsWith('.test.ts')
+    );
+  }
+
+  /**
+   * Enhance file info with context
+   */
+  private enhanceFileWithContext(file: any): any {
+    return {
+      ...file,
+      context: {
+        isCodeFile: this.looksLikeCodeChange(file),
+        isNewFeature: file.isNew && file.additions > file.deletions,
+        isRefactor: !file.isNew && file.deletions > file.additions * 2,
+        needsTesting: this.looksLikeCodeChange(file) && file.additions > 10
+      }
+    };
   }
 
   /**
@@ -652,12 +831,12 @@ export class CLIIntegrationService {
       } catch (error) {
         lastError = error;
         logger.warn(`Backend request attempt ${attempt} failed`, {
-          url,
-          attempt,
-          error: this.formatError(error)
-        });
-
-        if (attempt < this.config.retries) {
+        isCodeFile: this.looksLikeCodeChange(file),
+        isNewFeature: file.isNew && file.additions > file.deletions,
+        isRefactor: !file.isNew && file.deletions > file.additions * 2,
+        needsTesting: this.looksLikeCodeChange(file) && file.additions > 10
+      }
+    };
           // Wait before retry (exponential backoff)
           await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
         }

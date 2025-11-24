@@ -58,6 +58,10 @@ class VectorStore {
   async initializeFallbackStore() {
     const { VectorStoreFallback } = await import('./vector-store-fallback.js');
     this.store = new VectorStoreFallback(this.indexPath);
+    // If the fallback store exposes an async initializer, await it so store is ready
+    if (typeof this.store.initialize === 'function') {
+      await this.store.initialize();
+    }
     isUsingFaiss = false;
   }
 

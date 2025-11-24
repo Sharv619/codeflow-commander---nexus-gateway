@@ -62,8 +62,11 @@ const userSchema = new Schema<IUser>({
   timestamps: true,
   toJSON: {
     transform: function(doc, ret) {
-      delete ret.password;
-      delete ret.__v;
+      const out: any = ret;
+      if (out && typeof out === 'object') {
+        if (out.password) delete out.password;
+        if (out.__v !== undefined) delete out.__v;
+      }
       return ret;
     }
   }

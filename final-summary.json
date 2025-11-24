@@ -1,0 +1,29 @@
+{
+  "branch": "fix/validate-systems",
+  "commits": [
+    {
+      "sha": "f4a770c",
+      "msg": "chore(cli): install/fix deps"
+    },
+    {
+      "sha": "911e1d7", 
+      "msg": "chore(cli): fix build scripts for ESM compatibility"
+    },
+    {
+      "sha": "f08f8c6",
+      "msg": "fix(cli): import statement compatibility for faiss-node ES modules"
+    }
+  ],
+  "verificationReportPath": "verification-report.md",
+  "summary": {
+    "cli": "pass",
+    "rag": "fail",
+    "backend": "fail", 
+    "compose": "pass",
+    "ci": "fail"
+  },
+  "logs": {
+    "cli": "verification-report.md",
+    "backend": "TypeScript compilation errors (14 remaining) - JWT signing, mongoose options, route handlers, model transforms"
+  }
+}

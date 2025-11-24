@@ -40,16 +40,16 @@ jest.mock('sqlite3', () => ({
 // Mock AI/ML libraries conditionally
 try {
   jest.mock('@tensorflow/tfjs-node', () => ({
-    ready: jest.fn().mockResolvedValue(),
-    tensor: jest.fn(),
-    dispose: jest.fn()
+    ready: () => Promise.resolve(),
+    tensor: () => {},
+    dispose: () => {}
   }), { virtual: true });
 
   jest.mock('@tensorflow-models/universal-sentence-encoder', () => ({
-    load: jest.fn().mockResolvedValue({
-      embed: jest.fn().mockResolvedValue({
-        array: jest.fn().mockResolvedValue([[1, 2, 3]]),
-        dispose: jest.fn()
+    load: () => Promise.resolve({
+      embed: () => Promise.resolve({
+        array: () => Promise.resolve([[1, 2, 3]]),
+        dispose: () => {}
       })
     })
   }), { virtual: true });
@@ -143,8 +143,7 @@ afterAll(async () => {
   await jest.useRealTimers();
 });
 
-// Export for use in tests
-export { testUtils };
+// Note: testUtils are attached to global scope for use in tests
 
 // Increase timeout for async operations
 jest.setTimeout(30000);

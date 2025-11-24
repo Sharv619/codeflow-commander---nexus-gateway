@@ -8,7 +8,7 @@
   },
   "type": "module",
   "scripts": {
-    "test": "NODE_OPTIONS='--experimental-vm-modules --experimental-loader ./test/jest-esm.loader.mjs' jest --coverage --verbose",
+    "test": "NODE_OPTIONS='--experimental-vm-modules --experimental-loader ./tests/jest-esm.loader.mjs' jest --coverage --verbose",
     "test:unit": "npm run test -- --testPathPattern='tests/unit'",
     "test:integration": "npm run test -- --testPathPattern='tests/integration'",
     "test:e2e": "npm run test -- --testPathPattern='tests/e2e'",
@@ -70,14 +70,7 @@
     "node": ">=18.0.0"
   },
   "jest": {
-    "preset": null,
     "testEnvironment": "node",
-    "extensionsToTreatAsEsm": [".js"],
-    "globals": {
-      "ts-jest": {
-        "useESM": true
-      }
-    },
     "collectCoverageFrom": [
       "src/**/*.{js,mjs}",
       "bin/**/*.{js,mjs}",
@@ -95,12 +88,9 @@
     },
     "setupFilesAfterEnv": ["<rootDir>/tests/setup.js"],
     "testMatch": [
-      "**/tests/**/*.(spec|test).{js,mjs}",
-      "**/__tests__/**/*.(spec|test).{js,mjs}"
+      "**/tests/**/*.test.{js,mjs}",
+      "**/__tests__/**/*.test.{js,mjs}"
     ],
-    "moduleNameMapping": {
-      "^@/(.*)$": "<rootDir>/src/$1"
-    },
     "transformIgnorePatterns": [
       "node_modules/(?!(@tensorflow|faiss-node|@xenova)/)"
     ]

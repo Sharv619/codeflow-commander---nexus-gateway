@@ -39,7 +39,6 @@ class Database {
         serverSelectionTimeoutMS: 5000, // Keep trying to send operations for 5 seconds
         socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
         bufferCommands: false, // Disable Mongoose buffering
-        bufferMaxEntries: 0, // Disable Mongoose buffering
       }
     };
   }
@@ -112,7 +111,7 @@ class Database {
 
   public async healthCheck(): Promise<boolean> {
     try {
-      if (!this.isConnected) {
+      if (!this.isConnected || !mongoose.connection.db) {
         return false;
       }
 
@@ -131,6 +130,9 @@ class Database {
     }
 
     try {
+      if (!mongoose.connection.db) {
+        throw new Error('Database connection not available');
+      }
       await mongoose.connection.db.dropDatabase();
       console.log('🗑️ Database dropped successfully');
     } catch (error) {
