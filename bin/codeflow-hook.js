@@ -1,0 +1,1 @@
+./cli-tool/bin/codeflow-hook.js
