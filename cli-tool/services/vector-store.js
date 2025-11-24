@@ -79,6 +79,10 @@ class VectorStore {
   }
 
   async addVectors(vectors, metadata) {
+    // Ensure vector store initialized before adding vectors
+    if (!this.initialized) {
+      await this.initialize();
+    }
     if (!this.store) {
       throw new Error('Vector store not initialized');
     }
@@ -93,11 +97,21 @@ class VectorStore {
         });
       } else {
         // Fallback interface: addBatch expects vectors and metadata arrays
-        await this.store.addBatch(vectors, metadata);
+        // guard for addBatch presence
+        if (typeof this.store.addBatch === 'function') {
+          await this.store.addBatch(vectors, metadata);
+        } else if (typeof this.store.add === 'function') {
+          // some implementations use add per-item
+          for (let i = 0; i < vectors.length; i++) {
+            await this.store.add(vectors[i], metadata[i]);
+          }
+        } else {
+          throw new Error('Fallback store missing addBatch/add methods');
+        }
       }
 
       // Save index to disk
-      if (isUsingFaiss) {
+      if (isUsingFaiss && typeof this.saveIndex === 'function') {
         await this.saveIndex();
       }
 
@@ -109,6 +123,10 @@ class VectorStore {
   }
 
   async searchSimilar(queryVector, limit = 5) {
+    // Ensure vector store initialized before searching
+    if (!this.initialized) {
+      await this.initialize();
+    }
     if (!this.store) {
       throw new Error('Vector store not initialized');
     }
@@ -125,7 +143,11 @@ class VectorStore {
         }));
       } else {
         // Fallback interface already includes metadata
-        results = await this.store.search(queryVector, limit);
+        if (typeof this.store.search === 'function') {
+          results = await this.store.search(queryVector, limit);
+        } else {
+          throw new Error('Fallback store missing search method');
+        }
       }
 
       return results;
