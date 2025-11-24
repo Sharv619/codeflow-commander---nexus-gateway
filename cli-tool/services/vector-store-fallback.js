@@ -1,5 +1,6 @@
+import fs from 'fs';
+
 /**
- * In-memory vector store fallback
  * Provides basic vector storage and similarity search without external dependencies
  * Used when FAISS is not available or FEATURE_FAISS is disabled
  */
@@ -32,8 +33,12 @@ class VectorStoreFallback {
    * @param {Object} metadata - Associated metadata
    */
   async add(vector, metadata) {
+    // tolerate initialization races by attempting to initialize here
     if (!this.initialized) {
-      throw new Error('Vector store not initialized');
+      await this.initialize();
+      if (!this.initialized) {
+        throw new Error('Vector store not initialized');
+      }
     }
 
     if (!Array.isArray(vector) || vector.length === 0) {
@@ -72,8 +77,12 @@ class VectorStoreFallback {
    * @returns {Array<Object>} - Array of results with scores and metadata
    */
   async search(queryVector, limit = 5) {
+    // tolerate initialization races by attempting to initialize here
     if (!this.initialized) {
-      throw new Error('Vector store not initialized');
+      await this.initialize();
+      if (!this.initialized) {
+        throw new Error('Vector store not initialized');
+      }
     }
 
     if (!Array.isArray(queryVector) || queryVector.length === 0) {
