@@ -1,4 +1,5 @@
-import { FaissStore } from 'faiss-node';
+import pkg from 'faiss-node';
+const { FaissStore } = pkg;
 import { pipeline } from '@xenova/transformers';
 import fs from 'fs';
 import path from 'path';
