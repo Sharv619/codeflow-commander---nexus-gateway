@@ -1,0 +1,212 @@
+[
+  {
+    "Topic": "React 18 + TypeScript Foundation",
+    "Post Date": "2025-10-23",
+    "status": "To Do",
+    "context": "Focus: Building enterprise-grade developer tooling foundation\nCTA: Explore the tech stack",
+    "LINKEDIN URL": ""
+  },
+  {
+    "Topic": "Multi-Provider AI Integration",
+    "Post Date": "2025-10-24",
+    "status": "To Do",
+    "context": "Focus: Seamless OpenAI, Claude, Gemini support\nCTA: See integration capabilities",
+    "LINKEDIN URL": ""
+  },
+  {
+    "Topic": "Interactive CLI Configuration",
+    "Post Date": "2025-10-25",
+    "status": "To Do",
+    "context": "Focus: Dynamic model selection and validation\nCTA: Try the CLI tool",
+    "LINKEDIN URL": ""
+  },
+  {
+    "Topic": "Git Hook Automation Engine",
+    "Post Date": "2025-10-26",
+    "status": "To Do",
+    "context": "Focus: AI-powered code review and commit standards\nCTA: Implement in your workflow",
+    "LINKEDIN URL": ""
+  },
+  {
+    "Topic": "Enterprise Security Framework",
+    "Post Date": "2025-10-27",
+    "status": "To Do",
+    "context": "Focus: Robust validation and access control systems\nCTA: Review security implementation",
+    "LINKEDIN URL": ""
+  },
+  {
+    "Topic": "CSP & Content Security",
+    "Post Date": "2025-10-28",
+    "status": "To Do",
+    "context": "Focus: Advanced injection and security policies\nCTA: Learn about our security approach",
+    "LINKEDIN URL": ""
+  },
+  {
+    "Topic": "API Key Validation Engine",
+    "Post Date": "2025-10-29",
+    "status": "To Do",
+    "context": "Focus: Dynamic provider validation and error handling\nCTA: Secure your AI integrations",
+    "LINKEDIN URL": ""
+  },
+  {
+    "Topic": "Multi-Provider Model Selection",
+    "Post Date": "2025-10-30",
+    "status": "To Do",
+    "context": "Focus: Intelligent AI provider routing and optimization\nCTA: Optimize your AI workflow",
+    "LINKEDIN URL": ""
+  },
+  {
+    "Topic": "Case-Insensitive Provider Logic",
+    "Post Date": "2025-10-31",
+    "status": "To Do",
+    "context": "Focus: User-friendly AI provider configuration\nCTA: Simplify your setup",
+    "LINKEDIN URL": ""
+  },
+  {
+    "Topic": "Debug Output & Validation Testing",
+    "Post Date": "2025-11-01",
+    "status": "To Do",
+    "context": "Focus: Comprehensive error handling and debugging\nCTA: Troubleshoot like a pro",
+    "LINKEDIN URL": ""
+  },
+  {
+    "Topic": "Early Validation Architecture",
+    "Post Date": "2025-11-02",
+    "status": "To Do",
+    "context": "Focus: Performance optimization and error prevention\nCTA: Improve your CI/CD pipeline",
+    "LINKEDIN URL": ""
+  },
+  {
+    "Topic": "Large Diff Handling",
+    "Post Date": "2025-11-03",
+    "status": "To Do",
+    "context": "Focus: Efficient processing of complex code changes\nCTA: Scale your automated reviews",
+    "LINKEDIN URL": ""
+  },
+  {
+    "Topic": "Security Documentation",
+    "Post Date": "2025-11-04",
+    "status": "To Do",
+    "context": "Focus: Enterprise-grade security standards and practices\nCTA: Read our SECURITY.md",
+    "LINKEDIN URL": ""
+  },
+  {
+    "Topic": "Publishing Preparation",
+    "Post Date": "2025-11-05",
+    "status": "To Do",
+    "context": "Focus: Production readiness and deployment optimization\nCTA: Get ready for launch",
+    "LINKEDIN URL": ""
+  },
+  {
+    "Topic": "Version 0.2.0 Release",
+    "Post Date": "2025-11-06",
+    "status": "To Do",
+    "context": "Focus: Major feature additions and bug fixes\nCTA: Upgrade your implementation",
+    "LINKEDIN URL": ""
+  },
+  {
+    "Topic": "Autonomous Engineering Platform",
+    "Post Date": "2025-11-07",
+    "status": "To Do",
+    "context": "Focus: Phase 4 completion and enterprise capabilities\nCTA: Discover autonomous development",
+    "LINKEDIN URL": ""
+  },
+  {
+    "Topic": "Enterprise Knowledge Graph Backend",
+    "Post Date": "2025-11-08",
+    "status": "To Do",
+    "context": "Focus: Core private methods implementation\nCTA: Explore EKG capabilities",
+    "LINKEDIN URL": ""
+  },
+  {
+    "Topic": "Agent Implementation Refactoring",
+    "Post Date": "2025-11-09",
+    "status": "To Do",
+    "context": "Focus: Code organization and dependency management\nCTA: Optimize your agent architecture",
+    "LINKEDIN URL": ""
+  },
+  {
+    "Topic": "EKG Backend Integration",
+    "Post Date": "2025-11-10",
+    "status": "To Do",
+    "context": "Focus: Complete knowledge graph integration suite\nCTA: Connect with enterprise intelligence",
+    "LINKEDIN URL": ""
+  },
+  {
+    "Topic": "Zero-Trust Networking Architecture",
+    "Post Date": "2025-11-11",
+    "status": "To Do",
+    "context": "Focus: Enterprise security and network integration\nCTA: Secure your infrastructure",
+    "LINKEDIN URL": ""
+  },
+  {
+    "Topic": "Enterprise Identity Management",
+    "Post Date": "2025-11-12",
+    "status": "To Do",
+    "context": "Focus: Multi-tenant IAM systems and access control\nCTA: Implement enterprise authentication",
+    "LINKEDIN URL": ""
+  },
+  {
+    "Topic": "Compliance Framework Integration",
+    "Post Date": "2025-11-13",
+    "status": "To Do",
+    "context": "Focus: GDPR, SOX, HIPAA unified compliance platforms\nCTA: Achieve regulatory compliance",
+    "LINKEDIN URL": ""
+  },
+  {
+    "Topic": "Policy Decision Engines",
+    "Post Date": "2025-11-14",
+    "status": "To Do",
+    "context": "Focus: ABAC + RBAC real-time access control\nCTA: Enforce granular policies",
+    "LINKEDIN URL": ""
+  },
+  {
+    "Topic": "IAM API Endpoints",
+    "Post Date": "2025-11-15",
+    "status": "To Do",
+    "context": "Focus: RESTful identity management APIs\nCTA: Integrate with enterprise systems",
+    "LINKEDIN URL": ""
+  },
+  {
+    "Topic": "GDPR Implementation Guide",
+    "Post Date": "2025-11-16",
+    "status": "To Do",
+    "context": "Focus: Privacy by design and data subject rights\nCTA: Navigate GDPR compliance",
+    "LINKEDIN URL": ""
+  },
+  {
+    "Topic": "SOX Compliance Framework",
+    "Post Date": "2025-11-17",
+    "status": "To Do",
+    "context": "Focus: Internal controls and audit trail automation\nCTA: Streamline SOX compliance",
+    "LINKEDIN URL": ""
+  },
+  {
+    "Topic": "HIPAA Security Controls",
+    "Post Date": "2025-11-18",
+    "status": "To Do",
+    "context": "Focus: Healthcare data protection and ePHI security\nCTA: Protect sensitive healthcare data",
+    "LINKEDIN URL": ""
+  },
+  {
+    "Topic": "Security Incident Response",
+    "Post Date": "2025-11-19",
+    "status": "To Do",
+    "context": "Focus: Automated response and crisis management\nCTA: Read our response runbook",
+    "LINKEDIN URL": ""
+  },
+  {
+    "Topic": "Compliance Auditing Procedures",
+    "Post Date": "2025-11-20",
+    "status": "To Do",
+    "context": "Focus: Automated evidence collection and reporting\nCTA: Simplify your audit process",
+    "LINKEDIN URL": ""
+  },
+  {
+    "Topic": "Autonomous Agent Network Architecture",
+    "Post Date": "2025-11-21",
+    "status": "To Do",
+    "context": "Focus: Multi-agent orchestration and EKG integration\nCTA: Build autonomous systems",
+    "LINKEDIN URL": ""
+  }
+]

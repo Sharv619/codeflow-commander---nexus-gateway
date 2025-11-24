@@ -8,13 +8,35 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
     tailwind.config = {
+      darkMode: 'class',
       theme: {
         extend: {
           colors: {
-            'gray-900': '#111827',
-            'gray-800': '#1F2937',
-            'gray-700': '#374151',
-            'gray-400': '#9CA3AF',
+            // Light theme colors
+            'gray-50-light': '#F9FAFB',
+            'gray-100-light': '#F3F4F6',
+            'gray-200-light': '#E5E7EB',
+            'gray-300-light': '#D1D5DB',
+            'gray-400-light': '#9CA3AF',
+            'gray-500-light': '#6B7280',
+            'gray-600-light': '#4B5563',
+            'gray-700-light': '#374151',
+            'gray-800-light': '#1F2937',
+            'gray-900-light': '#111827',
+
+            // Dark theme colors
+            'gray-50-dark': '#111827',
+            'gray-100-dark': '#1F2937',
+            'gray-200-dark': '#374151',
+            'gray-300-dark': '#4B5563',
+            'gray-400-dark': '#6B7280',
+            'gray-500-dark': '#9CA3AF',
+            'gray-600-dark': '#D1D5DB',
+            'gray-700-dark': '#E5E7EB',
+            'gray-800-dark': '#F3F4F6',
+            'gray-900-dark': '#F9FAFB',
+
+            // Neutral colors
             'cyan-500': '#06B6D4',
             'green-500': '#22C55E',
             'red-500': '#EF4444',
@@ -38,7 +60,7 @@
 </script>
 <link rel="stylesheet" href="/index.css">
 </head>
-<body class="bg-gray-900 text-white">
+<body class="bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white transition-colors duration-200">
 <div id="root"></div>
 <script type="module" src="/index.tsx"></script>
 </body>

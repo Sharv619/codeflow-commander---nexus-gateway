@@ -1,29 +1,103 @@
 version: '3.8'
 services:
-  backend:
-    build:
-      context: .
-      dockerfile: server/Dockerfile
-    image: nexus-gateway-backend:latest
-    ports:
-      - "3001:3001"
+  # MongoDB Database
+  mongo:
+    image: mongo:8.0
+    container_name: codeflow-mongo
     restart: unless-stopped
     environment:
-      - NODE_ENV=production
-      - GEMINI_API_KEY
-      - GEMINI_API_URL
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-password}
+      MONGO_INITDB_DATABASE: ${MONGO_DATABASE:-codeflow}
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+      - mongo_config:/data/configdb
+    networks:
+      - codeflow-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
+  # Express.js Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: codeflow-backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      MONGODB_URI: mongodb://admin:password@mongo:27017/codeflow?authSource=admin
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
+      CORS_ORIGIN: http://localhost:3000
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - codeflow-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    command: ["npm", "start"]
+
+  # React/TypeScript Frontend
   frontend:
     build:
       context: .
       dockerfile: Dockerfile.frontend
-      args:
-        - GEMINI_API_KEY
-    image: nexus-gateway-frontend:latest
-    ports:
-      - "8080:80"
-    depends_on:
-      - backend
+    container_name: codeflow-frontend
     restart: unless-stopped
+    ports:
+      - "3000:80"
     environment:
-      - GEMINI_API_KEY
+      REACT_APP_API_BASE_URL: http://localhost:5000/api
+      REACT_APP_ENV: production
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - codeflow-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Legacy AI Analysis Server (for existing functionality)
+  ai-server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: codeflow-ai-server
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_API_URL=${GEMINI_API_URL}
+    networks:
+      - codeflow-network
+    command: ["node", "server/server.js"]
+
+# Docker Networks
+networks:
+  codeflow-network:
+    driver: bridge
+
+# Docker Volumes
+volumes:
+  mongo_data:
+    driver: local
+  mongo_config:
+    driver: local

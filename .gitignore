@@ -28,6 +28,9 @@ simple-test.js
 test-validation.js
 isolation-test.js
 
+# Notion setup files
+notion-setup/
+
 # Phase 3 & Phase 4 Documentation (keep technical work separate)
 PHASE3_*.md
 PHASE4_*.md

@@ -1,11 +1,8 @@
-
-export enum StageStatus {
-  Pending = 'PENDING',
-  Running = 'RUNNING',
-  Success = 'SUCCESS',
-  Failed = 'FAILED',
-  Skipped = 'SKIPPED',
-}
+export type ThemeMode = 'light' | 'dark';
+export type ThemeContextType = {
+  theme: ThemeMode;
+  toggleTheme: () => void;
+};
 
 export interface PipelineStageInfo {
   id: string;
@@ -13,30 +10,23 @@ export interface PipelineStageInfo {
   description: string;
 }
 
-export interface StageExecution {
-  id: string;
-  status: StageStatus;
-  logs: string[];
-  duration?: number;
-}
-
-export interface CodeReviewIssue {
+export interface PipelineIssue {
   line: number;
-  type: string; // Changed to string to accommodate ESLint rule IDs
+  type: string;
   description: string;
   link?: string;
 }
 
-export interface CodeReviewFileResult {
+export interface CodeReviewFile {
   fileName: string;
   status: 'PASS' | 'FAIL';
   score: number;
-  issues: CodeReviewIssue[];
+  issues: PipelineIssue[];
   suggestions: string[];
 }
 
 export interface CodeReviewResult {
   overallStatus: 'PASS' | 'FAIL';
   summary: string;
-  files: CodeReviewFileResult[];
+  files: CodeReviewFile[];
 }
