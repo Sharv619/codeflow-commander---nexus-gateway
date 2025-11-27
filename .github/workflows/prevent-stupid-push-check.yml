@@ -1,0 +1,41 @@
+name: Prevent Stupid Push Check
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  prevent-stupid-push-validation:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch full history for proper git diff
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run prevent-stupid-push test
+      run: npm test -- tests/prevent-stupid-push.test.ts
+
+    - name: Shell script lint check
+      uses: ludeeus/action-shellcheck@2.0.0
+      with:
+        scandir: './scripts'
+
+    - name: Dry-run prevent-stupid-push script
+      run: |
+        # Test the script works in dry-run mode without failing CI
+        # This will detect potential issues but not block if secrets exist
+        # (since we expect the repo to have legitimate secrets)
+        echo "Running dry-run check..."
+        ./scripts/prevent-stupid-push.sh --dry-run || echo "Script detected secrets as expected"

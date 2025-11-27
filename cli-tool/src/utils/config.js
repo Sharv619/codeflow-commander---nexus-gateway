@@ -58,17 +58,31 @@ export function loadConfig() {
   try {
     ensureConfigDir();
 
-    if (!fs.existsSync(CONFIG_FILE)) {
-      // Create default config
-      fs.writeFileSync(CONFIG_FILE, JSON.stringify(DEFAULT_CONFIG, null, 2));
-      return { ...DEFAULT_CONFIG };
+    // 1. Load Global Config (~/.codeflow-hook/config.json)
+    let globalConfig = {};
+    if (fs.existsSync(CONFIG_FILE)) {
+      const globalConfigData = fs.readFileSync(CONFIG_FILE, 'utf8');
+      globalConfig = JSON.parse(globalConfigData);
     }
 
-    const configData = fs.readFileSync(CONFIG_FILE, 'utf8');
-    const config = JSON.parse(configData);
+    // 2. Load Project Config (.codeflowrc.json)
+    const projectConfigPath = path.join(process.cwd(), '.codeflowrc.json');
+    let projectConfig = {};
+    if (fs.existsSync(projectConfigPath)) {
+      const projectConfigData = fs.readFileSync(projectConfigPath, 'utf8');
+      projectConfig = JSON.parse(projectConfigData);
+    }
 
-    // Merge with defaults to ensure new settings are included
-    return { ...DEFAULT_CONFIG, ...config };
+    // 3. Merge: Defaults + Global + Project (Project overrides Global)
+    // The spread operator takes properties from right to left, overwriting previous ones
+    const mergedConfig = { ...DEFAULT_CONFIG, ...globalConfig, ...projectConfig };
+
+    // Create global config if it doesn't exist (for first-time setup)
+    if (!fs.existsSync(CONFIG_FILE)) {
+      fs.writeFileSync(CONFIG_FILE, JSON.stringify(mergedConfig, null, 2));
+    }
+
+    return mergedConfig;
   } catch (error) {
     console.warn(`⚠️  Failed to load configuration: ${error.message}`);
     console.log('🔄 Using default configuration');

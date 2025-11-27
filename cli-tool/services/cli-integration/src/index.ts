@@ -831,13 +831,13 @@ export class CLIIntegrationService {
       } catch (error) {
         lastError = error;
         logger.warn(`Backend request attempt ${attempt} failed`, {
-        isCodeFile: this.looksLikeCodeChange(file),
-        isNewFeature: file.isNew && file.additions > file.deletions,
-        isRefactor: !file.isNew && file.deletions > file.additions * 2,
-        needsTesting: this.looksLikeCodeChange(file) && file.additions > 10
-      }
-    };
-          // Wait before retry (exponential backoff)
+          url,
+          attempt,
+          error: this.formatError(error)
+        });
+
+        // Wait before retry (exponential backoff)
+        if (attempt < this.config.retries) {
           await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
         }
       }

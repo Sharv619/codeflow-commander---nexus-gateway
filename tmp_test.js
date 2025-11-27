@@ -1,1 +1,0 @@
-const unused = 1\nconsole.log(2)\n

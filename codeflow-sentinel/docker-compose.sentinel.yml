@@ -1,0 +1,76 @@
+services:
+  sentinel:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - SENTINEL_PORT=8000
+      - SENTINEL_HISTORY_MAX=1000
+      - SENTINEL_CONTAMINATION=0.1
+      - OLLAMA_MODEL=llama2
+      - OLLAMA_HOST=http://host.docker.internal:11434
+    networks:
+      - sentinel-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  app-simulator:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./cli-tool/examples/sentinel-client.js:/app/sentinel-client.js
+      - ./scripts:/app/scripts
+    command: >
+      sh -c "
+        apk add --no-cache curl &&
+        echo 'Waiting for sentinel...' &&
+        for i in 1 2 3 4 5; do
+          if curl -f http://sentinel:8000/health > /dev/null 2>&1; then
+            echo 'Sentinel is healthy!'
+            break
+          fi
+          echo \"Attempt \$i failed, retrying...\"
+          sleep 5
+        done &&
+        echo 'Running simulation...' &&
+        node /app/sentinel-client.js &&
+        echo 'Testing anomalous telemetry...' &&
+        node -e \"
+        const client = require('./sentinel-client');
+        setTimeout(async () => {
+          try {
+            await client.sendTelemetry({
+              latency: 25000,
+              input_length: 50000,
+              errors: 20,
+              route: '/api/malicious-test',
+              user_id: 'test-user'
+            });
+          } catch (e) {
+            console.log('Expected failure:', e.message);
+          }
+          process.exit(0);
+        }, 1000);
+        \"
+      "
+    depends_on:
+      sentinel:
+        condition: service_healthy
+    networks:
+      - sentinel-net
+    environment:
+      - SENTINEL_HOST=sentinel
+      - SENTINEL_PORT=8000
+    restart: "no"
+
+networks:
+  sentinel-net:
+    driver: bridge
+    internal: false

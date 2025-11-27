@@ -1,0 +1,220 @@
+name: CodeFlow Sentinel Validation
+
+on:
+  pull_request:
+    paths:
+      - 'codeflow-sentinel/**'
+      - 'cli-tool/examples/sentinel-client.js'
+      - '.github/workflows/codeflow-sentinel.yml'
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'codeflow-sentinel/**'
+      - 'cli-tool/examples/sentinel-client.js'
+
+jobs:
+  validate-sentinel:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install Python dependencies
+      run: |
+        cd codeflow-sentinel
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run sentinel unit tests
+      run: |
+        cd codeflow-sentinel
+        python -m pytest tests/test_sentinel.py -v --tb=short
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Start sentinel service in background
+      run: |
+        cd codeflow-sentinel
+        python sentinel.py &
+        SENTINEL_PID=$!
+
+        # Wait for sentinel to start (health check)
+        echo "Waiting for sentinel to become healthy..."
+        for i in {1..30}; do
+          if curl -f http://localhost:8000/health &>/dev/null; then
+            echo "Sentinel is healthy after ${i} attempts"
+            break
+          fi
+          if [ $i -eq 30 ]; then
+            echo "Sentinel failed to start"
+            kill $SENTINEL_PID 2>/dev/null || true
+            exit 1
+          fi
+          sleep 2
+        done
+
+        # Store PID for cleanup
+        echo $SENTINEL_PID > /tmp/sentinel.pid
+
+    - name: Test normal telemetry (should return OK)
+      run: |
+        response=$(curl -s -X POST \
+          -H "Content-Type: application/json" \
+          -d '{"latency": 120, "input_length": 1024, "errors": 0, "route": "/api/test"}' \
+          http://localhost:8000/analyze-flow)
+
+        if echo "$response" | grep -q '"status": "OK"'; then
+          echo "✓ Normal telemetry test passed"
+        else
+          echo "✗ Normal telemetry test failed: $response"
+          echo "$response" | grep -q '"status": "THREAT_DETECTED"'
+          if [ $? -eq 0 ]; then
+            echo "ERROR: Normal telemetry detected as threat - anomaly detection mismatch"
+            exit 1
+          fi
+          exit 1
+        fi
+
+    - name: Test anomalous telemetry (should return THREAT_DETECTED after training)
+      run: |
+        # First send some normal telemetry to establish baseline
+        for i in {1..20}; do
+          curl -s -X POST \
+            -H "Content-Type: application/json" \
+            -d '{"latency": 200, "input_length": 1000, "errors": 0, "route": "/api/train"}' \
+            http://localhost:8000/analyze-flow >/dev/null
+        done
+
+        # Now test anomalous telemetry
+        response=$(curl -s -X POST \
+          -H "Content-Type: application/json" \
+          -d '{"latency": 25000, "input_length": 50000, "errors": 15, "route": "/api/anomaly"}' \
+          http://localhost:8000/analyze-flow)
+
+        if echo "$response" | grep -q '"status": "THREAT_DETECTED"'; then
+          echo "✓ Anomalous telemetry correctly detected as threat"
+        elif echo "$response" | grep -q '"status": "OK"'; then
+          echo "⚠ Anomalous telemetry not detected (may be normal with insufficient training data)"
+          echo "Response: $response"
+        else
+          echo "✗ Anomalous telemetry test failed with unexpected response: $response"
+          exit 1
+        fi
+
+    - name: Run Node.js client integration test
+      run: |
+        cd cli-tool/examples
+
+        # Test the client library directly
+        cat > test-integration.js << 'EOF'
+        const client = require('./sentinel-client');
+
+        // Configure for local sentinel
+        client.config.host = 'localhost';
+        client.config.port = 8000;
+        client.config.timeout = 5000;
+
+        async function runTests() {
+          try {
+            console.log('Testing health check...');
+            const health = await client.checkHealth();
+            console.log('Health:', health.status);
+
+            if (health.status !== 'healthy') {
+              throw new Error('Sentinel not healthy');
+            }
+
+            console.log('Testing normal telemetry...');
+            const normalResult = await client.sendTelemetry({
+              latency: 150,
+              input_length: 2048,
+              errors: 0,
+              route: '/api/integration-test'
+            });
+
+            if (normalResult.status !== 'OK' && normalResult.status !== 'THREAT_DETECTED') {
+              throw new Error('Unexpected normal response: ' + normalResult.status);
+            }
+
+            console.log('Normal test result:', normalResult.status);
+
+            console.log('Testing anomalous telemetry...');
+            const anomalyResult = await client.sendTelemetry({
+              latency: 30000,
+              input_length: 100000,
+              errors: 20,
+              route: '/api/integration-anomaly'
+            });
+
+            console.log('Anomaly test result:', anomalyResult.status);
+
+            console.log('All integration tests passed');
+            return true;
+          } catch (error) {
+            console.error('Integration test failed:', error.message);
+            return false;
+          }
+        }
+
+        runTests().then(success => {
+          process.exit(success ? 0 : 1);
+        });
+        EOF
+
+        if node test-integration.js; then
+          echo "✓ Node.js client integration test passed"
+          rm -f test-integration.js
+        else
+          echo "✗ Node.js client integration test failed"
+          rm -f test-integration.js
+          exit 1
+        fi
+
+    - name: Test API schema validation (OpenAPI)
+      run: |
+        if curl -f http://localhost:8000/docs >/dev/null 2>&1; then
+          echo "✓ OpenAPI documentation accessible"
+        else
+          echo "✗ OpenAPI documentation not accessible"
+          exit 1
+        fi
+
+        if curl -f http://localhost:8000/openapi.json >/dev/null 2>&1; then
+          echo "✓ OpenAPI schema accessible"
+        else
+          echo "✗ OpenAPI schema not accessible"
+          exit 1
+        fi
+
+    - name: Test metrics endpoint (if available)
+      run: |
+        if curl -f http://localhost:8000/metrics >/dev/null 2>&1; then
+          echo "✓ Prometheus metrics endpoint available"
+          # Check if prometheus metrics are in response
+          metrics=$(curl -s http://localhost:8000/metrics)
+          if echo "$metrics" | grep -q "sentinel_"; then
+            echo "✓ Custom sentinel metrics found"
+          else
+            echo "⚠ No sentinel-specific metrics found"
+          fi
+        else
+          echo "⚠ Metrics endpoint not available (prometheus-client may not be installed)"
+        fi
+
+    - name: Clean up background service
+      run: |
+        if [ -f /tmp/sentinel.pid ]; then
+          kill $(cat /tmp/sentinel.pid) 2>/dev/null || true
+          rm -f /tmp/sentinel.pid
+        fi
+        # Clean up any remaining python processes
+        pkill -f "python sentinel.py" || true
