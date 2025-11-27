@@ -1,6 +1,6 @@
 {
   "name": "codeflow-cli-tool",
-  "version": "6.0.0",
+  "version": "1.0.0",
   "description": "Enterprise-grade AI-powered code review and knowledge management system (Phases 3-4-5)",
   "main": "bin/codeflow-hook.js",
   "bin": {
@@ -29,10 +29,13 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.0",
     "@google/generative-ai": "^0.24.1",
+    "@langchain/community": "^1.0.5",
+    "@langchain/core": "^1.1.0",
     "axios": "^1.13.2",
     "chalk": "^5.3.0",
     "commander": "^14.0.2",
     "glob": "^10.0.0",
+    "langchain": "^1.1.1",
     "openai": "^6.9.1",
     "ora": "^9.0.0"
   },
