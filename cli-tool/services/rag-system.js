@@ -60,6 +60,7 @@ class RAGSystem {
         chunks.forEach((chunk, index) => {
           allChunks.push(chunk);
           fileMetadata.push({
+            content: chunk, // Store the original text content
             filePath: path.relative(repoPath, filePath),
             absolutePath: filePath,
             chunkIndex: index,
@@ -132,7 +133,7 @@ class RAGSystem {
 
     if (includeMetadata) {
       return filteredResults.map(result => ({
-        content: result.vector, // This should be the original text, but we need to store it
+        content: result.metadata.content, // Get the original text from metadata
         metadata: result.metadata,
         score: result.score,
         filePath: result.metadata.filePath,

@@ -112,6 +112,65 @@ The CLI serves as your interface to the Codeflow Commander Nexus Gateway — a d
 └─────────────────────────────────────────────────────────┘
 ```
 
+## 🔄 System Architecture
+
+### Development Workflow
+```mermaid
+graph TD
+    subgraph "Developer Machine"
+        Dev[Developer] -->|git commit| GitHook[CodeFlow-Hook (Pre-Commit)]
+        GitHook -->|1. Read Config| Config[Cascade Config (.codeflowrc)]
+        GitHook -->|2. Scan Regex| Compliance[Compliance Engine]
+        GitHook -->|3. Query Context| VectorDB[(Local Vector Store)]
+        GitHook -->|4. Analyze| AI[AI Provider (Gemini/OpenAI/Claude)]
+    end
+
+    subgraph "Runtime Environment (Server)"
+        App[Your Application] -->|Emit Telemetry| Sentinel[CodeFlow-Sentinel]
+        Sentinel -->|Detect Anomaly| ML[Isolation Forest Model]
+        ML -->|Flag Threat| Agent[Local LLM Agent]
+        Agent -->|Explain| Alert[Security Alert]
+        Sentinel -.->|Freeze Signal| App
+    end
+
+    Compliance --"Violations Found"--> Block[Block Commit]
+    AI --"Code Quality < 7"--> Block
+    ML --"Anomaly Detected"--> Freeze[Circuit Breaker]
+```
+
+### Commit-to-Production Flow
+```mermaid
+sequenceDiagram
+    participant Dev as Developer
+    participant CLI as CodeFlow-Hook
+    participant RAG as Vector Store
+    participant LLM as AI Provider
+    participant Sentry as Sentinel (Runtime)
+
+    Note over Dev, CLI: Development Phase
+    Dev->>CLI: git commit -m "feat: new login"
+    CLI->>CLI: Load Config (Project > Global)
+    CLI->>CLI: Run Compliance Scan (GDPR/HIPAA)
+    alt Violation Detected
+        CLI-->>Dev: 🚨 BLOCK COMMIT (PII Found)
+    else Safe to Proceed
+        CLI->>RAG: Fetch Context (Similar Files)
+        RAG-->>CLI: Return Context
+        CLI->>LLM: Analyze Diff + Context
+        LLM-->>CLI: Review & Rating
+        CLI-->>Dev: ✅ Commit Allowed
+    end
+
+    Note over Sentry, LLM: Runtime Phase
+    Sentry->>Sentry: Monitor Traffic (Latency/Input)
+    Sentry->>Sentry: Update ML Model (IsolationForest)
+    alt Anomaly Detected
+        Sentry->>LLM: "Explain this behavior"
+        LLM-->>Sentry: "Likely Brute Force Attack"
+        Sentry->>Sentry: Trigger Lockdown
+    end
+```
+
 ## 📦 Installation
 
 ### Global Installation

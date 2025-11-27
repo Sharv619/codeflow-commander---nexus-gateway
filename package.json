@@ -1,52 +1,74 @@
 {
-  "name": "codeflow-commander---nexus-gateway",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
+  "name": "codeflow-commander-nexus-gateway",
+  "version": "1.0.0",
+  "description": "The Autonomous Engineering Platform - Complete ecosystem for AI-powered development workflows",
+  "main": "index.js",
+  "workspaces": [
+    "cli-tool",
+    "codeflow-sentinel",
+    "backend",
+    "codeflow-cli"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:analyze": "node --experimental-fetch scripts/test-analyze.js",
-    "test:ai": "node --experimental-fetch scripts/test-ai.js",
-    "server": "node server/server.js",
-    "compose:up": "docker compose up --build -d",
-    "compose:down": "docker compose down",
-    "compose:logs": "docker compose logs -f",
-    "compose:build": "docker compose build",
-    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
-    "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
-    "format": "prettier --write .",
-    "type-check": "tsc --noEmit"
+    "test": "npm run test --workspaces",
+    "test:unit": "npm run test:unit --workspaces",
+    "test:e2e": "npm run test:e2e --workspaces",
+    "test:integration": "npm run test --workspace=cli-tool -- --testPathPattern='tests/integration'",
+    "test:security": "npm run test:security --workspace=cli-tool",
+    "lint": "npm run lint --workspaces",
+    "build": "npm run build --workspaces",
+    "ci": "npm run ci --workspace=cli-tool",
+    "verify": "./verify_ecosystem.sh",
+    "audit": "./tests/verification/deep_audit.sh",
+    "rc": "./rc_verify.sh",
+    "install:all": "npm install",
+    "setup": "node setup.js",
+    "docs": "npm run docs --workspace=cli-tool",
+    "health-check": "npm run health-check --workspace=cli-tool",
+    "benchmark": "npm run benchmark --workspace=cli-tool"
   },
-  "dependencies": {
-    "@notionhq/client": "^5.4.0",
-    "body-parser": "^1.20.2",
-    "cors": "^2.8.5",
-    "express": "^4.19.2",
-    "express-rate-limit": "^6.7.0",
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1",
-    "react-icons": "^5.5.0"
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Sharv619/codeflow-commander---nexus-gateway.git"
   },
+  "keywords": [
+    "ai",
+    "ml",
+    "devops",
+    "automation",
+    "code-review",
+    "compliance",
+    "security",
+    "enterprise",
+    "developer-tools",
+    "autonomous-engineering"
+  ],
+  "author": "CodeFlow Commander Team",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "dependencies": {},
   "devDependencies": {
-    "@testing-library/jest-dom": "^6.4.6",
-    "@testing-library/react": "^16.0.0",
-    "@types/jest": "^29.5.12",
-    "@types/node": "^20.14.2",
-    "@typescript-eslint/eslint-plugin": "^7.12.0",
-    "@typescript-eslint/parser": "^7.12.0",
-    "eslint": "^8.57.0",
-    "eslint-plugin-react": "^7.34.2",
-    "eslint-plugin-react-hooks": "^4.6.2",
-    "eslint-plugin-react-refresh": "^0.4.7",
-    "jest": "^29.7.0",
-    "jest-environment-jsdom": "^29.7.0",
-    "jsdom": "^24.1.0",
-    "ts-jest": "^29.1.4",
-    "typescript": "~5.4.5",
-    "vite": "^5.3.1"
-  }
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "husky": "^8.0.0",
+    "lint-staged": "^13.0.0",
+    "npm-run-all": "^4.1.5",
+    "prettier": "^3.0.0"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged",
+      "pre-push": "npm run test"    }
+  },
+  "lint-staged": {
+    "*.{js,ts,jsx,tsx,json,md}": [
+      "prettier --write",
+      "eslint --fix"
+    ]
+  },
+  "private": true
 }

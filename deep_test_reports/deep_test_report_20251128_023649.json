@@ -1,0 +1,28 @@
+{
+  "timestamp": "2025-11-28 02:36:49",
+  "test_run_id": "20251128_023649",
+  "environment": {
+    "system": "Linux lade-G5-5500 6.14.0-36-generic #36~24.04.1-Ubuntu SMP PREEMPT_DYNAMIC Wed Oct 15 15:45:17 UTC 2 x86_64 x86_64 x86_64 GNU/Linux",
+    "node_version": "v20.19.5",
+    "npm_version": "10.8.2",
+    "docker_version": "Docker version 28.2.2, build 28.2.2-0ubuntu1~24.04.1"
+  },
+  "test_results": {
+    "total_tests": 6,
+    "passed_tests": 3,
+    "failed_tests": 3,
+    "success_rate_percent": 50.0
+  },
+  "phases_completed": [
+    "README Claims Validation",
+    "Functional Testing Suite",
+    "Performance & System Testing",
+    "Integration & Systems Testing"
+  ],
+  "background_monitors": {
+    "deep_monitor_active": false,
+    "performance_monitor_active": false
+  },
+  "log_files": "1 log files generated",
+  "report_files": "2 report files generated"
+}

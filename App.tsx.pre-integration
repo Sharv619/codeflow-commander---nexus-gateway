@@ -1,5 +1,4 @@
 
-import { AiConsole } from "./components/AiConsole";
 import React, { useState } from 'react';
 import Header from './components/Header';
 import CRMDashboard from './components/CRMDashboard';
@@ -18,8 +17,7 @@ const App: React.FC = () => {
           <div className="mb-8">
             <LinkedInContentStudio />
             <hr className="my-8 border-gray-300 dark:border-gray-600" />
-            <AiConsole />
-</div>
+          </div>
         )}
 
         {!showLinkedInStudio && <CRMDashboard />}
@@ -27,8 +25,7 @@ const App: React.FC = () => {
       <footer className="text-center text-gray-400 dark:text-gray-500 py-4 text-sm transition-colors duration-200">
         <p>CodeFlow Commander - Developer CRM & AI-Powered Team Management Platform</p>
       </footer>
-      <AiConsole />
-</div>
+    </div>
   );
 };
 

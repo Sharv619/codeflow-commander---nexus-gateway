@@ -1,10 +1,10 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
-import User from '../models/User.js';
-import { AuthMiddleware, AuthenticatedRequest, authenticate } from '../middleware/auth.js';
-import { requireAdmin } from '../middleware/rbac.js';
-import database from '../config/database.js';
+import User from '../models/User';
+import { AuthMiddleware, AuthenticatedRequest, authenticate } from '../middleware/auth';
+import { requireAdmin } from '../middleware/rbac';
+import database from '../config/database';
 
 const router = Router();
 

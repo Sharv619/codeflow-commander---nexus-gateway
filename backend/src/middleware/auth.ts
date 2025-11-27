@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import jwt, { Secret } from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
 import { config } from 'dotenv';
-import User, { IUser } from '../models/User.js';
+import User, { IUser } from '../models/User';
 
 // Load environment variables
 config();
@@ -33,8 +33,7 @@ export class AuthMiddleware {
       role: user.role,
     };
 
-    return jwt.sign(payload, this.JWT_SECRET, {
-      algorithm: 'HS256',
+    return jwt.sign(payload, this.JWT_SECRET as string, {
       expiresIn: this.JWT_EXPIRES_IN,
       issuer: 'codeflow-backend',
       audience: 'codeflow-client',
@@ -50,8 +49,7 @@ export class AuthMiddleware {
       type: 'refresh',
     };
 
-    return jwt.sign(payload, this.JWT_SECRET, {
-      algorithm: 'HS256',
+    return jwt.sign(payload, this.JWT_SECRET as any, {
       expiresIn: this.REFRESH_TOKEN_EXPIRES_IN,
       issuer: 'codeflow-backend',
       audience: 'codeflow-client',

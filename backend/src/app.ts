@@ -142,7 +142,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   }
 
   // Default error response
-  res.status(err.status || 500).json({
+  return res.status(err.status || 500).json({
     error: 'Internal server error',
     message: process.env.NODE_ENV === 'production'
       ? 'An error occurred'

@@ -41,7 +41,7 @@ program
 program
   .command('config')
   .description('Configure AI provider settings')
-  .option('-p, --provider <provider>', 'AI provider (gemini, openai, claude)', 'gemini')
+  .option('-p, --provider <provider>', 'AI provider (gemini, openai, claude, ollama)', 'gemini')
   .option('-k, --key <key>', 'API key for the chosen provider')
   .option('-u, --url <url>', 'Custom API URL (optional)')
   .option('-m, --model <model>', 'AI model name (optional - uses provider default)')
@@ -1863,3 +1863,32 @@ async function updateEnterpriseGitHooks(config) {
 
 // Make sure the final line uses parseAsync
 program.parseAsync(process.argv);
+
+// [ARCHITECTURAL BINDING] Enterprise Knowledge Graph Integration
+async function activateEKG(query) {
+    try {
+        // Dynamic import to satisfy MMIL architecture requirements
+        const { KnowledgeGraph } = await import('../src/knowledge/ekg-core.js');
+        const ekg = new KnowledgeGraph();
+
+        console.log(`[EKG] 🔍 Processing semantic query: ${query?.substring(0, 50)}...`);
+        const results = await ekg.findSemanticDependencies(query);
+
+        if (results && results.length > 0) {
+            console.log(`[EKG] ✅ Found ${results.length} semantic dependencies`);
+            return results;
+        } else {
+            console.log(`[EKG] ℹ️ No semantic dependencies found`);
+            return [];
+        }
+
+    } catch (error) {
+        console.error('[EKG] ❌ Failed to activate knowledge graph:', error.message);
+        console.error('[EKG] Falling back to basic text matching');
+
+        // Fallback implementation if EKG fails
+        return query ? [{ content: `Basic search for: ${query}`, type: 'fallback' }] : [];
+    }
+}
+
+global.activateEKG = activateEKG;

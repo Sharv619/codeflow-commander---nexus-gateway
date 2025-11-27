@@ -1,0 +1,20 @@
+graph TD
+    subgraph "Developer Machine"
+        Dev[Developer] -->|git commit| GitHook[CodeFlow-Hook (Pre-Commit)]
+        GitHook -->|1. Read Config| Config[Cascade Config (.codeflowrc)]
+        GitHook -->|2. Scan Regex| Compliance[Compliance Engine]
+        GitHook -->|3. Query Context| VectorDB[(Local Vector Store)]
+        GitHook -->|4. Analyze| AI[AI Provider (Gemini/OpenAI/Claude)]
+    end
+
+    subgraph "Runtime Environment (Server)"
+        App[Your Application] -->|Emit Telemetry| Sentinel[CodeFlow-Sentinel]
+        Sentinel -->|Detect Anomaly| ML[Isolation Forest Model]
+        ML -->|Flag Threat| Agent[Local LLM Agent]
+        Agent -->|Explain| Alert[Security Alert]
+        Sentinel -.->|Freeze Signal| App
+    end
+
+    Compliance -->|"Violations Found"| Block[Block Commit]
+    AI -->|"Code Quality < 7"| Block
+    ML -->|"Anomaly Detected"| Freeze[Circuit Breaker]

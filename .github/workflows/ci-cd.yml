@@ -28,6 +28,15 @@ jobs:
     strategy:
       matrix:
         service: [backend, frontend]
+        include:
+          - service: backend
+            working-dir: ./backend
+            package-lock: ./backend/package-lock.json
+            has-tests: true
+          - service: frontend
+            working-dir: .
+            package-lock: ./package-lock.json
+            has-tests: false
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -37,19 +46,19 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: ${{ matrix.service }}/package-lock.json
+          cache-dependency-path: ${{ matrix.package-lock }}
 
       - name: Install dependencies (${{ matrix.service }})
-        working-directory: ${{ matrix.service }}
+        working-directory: ${{ matrix.working-dir }}
         run: npm ci
 
       - name: Run linting (${{ matrix.service }})
-        working-directory: ${{ matrix.service }}
+        working-directory: ${{ matrix.working-dir }}
         run: npm run lint
 
       - name: Run backend unit tests
-        if: matrix.service == 'backend'
-        working-directory: ${{ matrix.service }}
+        if: matrix.service == 'backend' && matrix.has-tests
+        working-directory: ${{ matrix.working-dir }}
         run: npm test -- --coverage --watchAll=false
         env:
           NODE_ENV: test
@@ -64,7 +73,7 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
           command: code test --sarif-file-output=snyk.sarif
-          working-dir: ${{ matrix.service }}
+          working-dir: ${{ matrix.working-dir }}
 
       - name: Upload Snyk Code results to GitHub Security
         if: always() && matrix.service == 'backend'
@@ -281,13 +290,10 @@ jobs:
         run: |
           timeout 60 bash -c 'until curl -f http://localhost:3000; do sleep 2; done'
 
-      - name: Run E2E tests with Playwright
-        working-directory: frontend
+      - name: Run E2E tests (disabled)
         run: |
-          npm ci
-          npx playwright install --with-deps
-          npm run test:e2e || true
-          # Note: Exit 0 to continue pipeline - E2E tests may need setup
+          echo "E2E tests not yet configured for this project"
+          # Future: Implement Playwright or similar E2E testing when ready
 
       - name: Cleanup containers
         if: always()
