@@ -44,7 +44,7 @@ class AgentOrchestrator {
 ```
 - **Specialized AI agents**: Code review, security, compliance roles
 - **Intelligent task routing** with consensus-based decision making
-- **Scalable orchestration** for enterprise workloads
+- **Scalable orchestration** for heavy workloads
 
 #### 3. 🗣️ **Multi-Modal Interface Layer (MMIL)**
 ```typescript
