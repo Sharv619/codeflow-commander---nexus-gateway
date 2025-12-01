@@ -90,18 +90,6 @@ services:
       - codeflow-network
     command: ["node", "server/server.js"]
 
-# Docker Networks
-networks:
-  codeflow-network:
-    driver: bridge
-
-# Docker Volumes
-volumes:
-  mongo_data:
-    driver: local
-  mongo_config:
-    driver: local
-
   # [ACTIVATION] Production Reverse Proxy - VALIDATOR TARGET
   nginx:
     image: nginx:alpine
@@ -121,3 +109,15 @@ volumes:
       interval: 30s
       timeout: 10s
       retries: 3
+
+# Docker Networks
+networks:
+  codeflow-network:
+    driver: bridge
+
+# Docker Volumes
+volumes:
+  mongo_data:
+    driver: local
+  mongo_config:
+    driver: local

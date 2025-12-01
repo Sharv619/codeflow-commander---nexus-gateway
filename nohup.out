@@ -1,0 +1,15 @@
+[32minfo[39m: CLI Integration Service initialized {"ingestionServiceUrl":"http://localhost:3000","queryServiceUrl":"http://localhost:4000","retries":3,"service":"cli-integration","timeout":30000,"timestamp":"2025-12-01T01:23:46.791Z"}
+- Submitting repository for EKG analysis...
+[32minfo[39m: Indexing repository via EKG backend {"fullName":"Sharv619/codeflow-commander---nexus-gateway","repositoryId":"Sharv619-codeflow-commander---nexus-gateway-mimgu42u","service":"cli-integration","timestamp":"2025-12-01T01:23:46.854Z","url":"https://github.com/Sharv619/codeflow-commander---nexus-gateway.git"}
+[33mwarn[39m: Backend request attempt 1 failed {"attempt":1,"error":"HTTP undefined: connect ECONNREFUSED 127.0.0.1:3000","service":"cli-integration","timestamp":"2025-12-01T01:23:46.898Z","url":"http://localhost:3000/webhooks/github"}
+[33mwarn[39m: Backend request attempt 2 failed {"attempt":2,"error":"HTTP undefined: connect ECONNREFUSED 127.0.0.1:3000","service":"cli-integration","timestamp":"2025-12-01T01:23:48.904Z","url":"http://localhost:3000/webhooks/github"}
+[33mwarn[39m: Backend request attempt 3 failed {"attempt":3,"error":"HTTP undefined: connect ECONNREFUSED 127.0.0.1:3000","service":"cli-integration","timestamp":"2025-12-01T01:23:52.909Z","url":"http://localhost:3000/webhooks/github"}
+[31merror[39m: Repository indexing failed {"error":"HTTP undefined: connect ECONNREFUSED 127.0.0.1:3000","service":"cli-integration","timestamp":"2025-12-01T01:23:52.910Z"}
+✔ Repository indexing initiated
+✅ Repository indexing failed: HTTP undefined: connect ECONNREFUSED 127.0.0.1:3000
+📊 Stats: {
+  "indexedFiles": 0,
+  "analysisTime": 6079,
+  "webhookAccepted": false
+}
+🔗 Repository submitted to EKG Ingestion Service for analysis
