@@ -1,29 +1,76 @@
 version: '3.8'
 services:
-  backend:
-    build:
-      context: .
-      dockerfile: server/Dockerfile
-    image: nexus-gateway-backend:latest
-    ports:
-      - "3001:3001"
-    restart: unless-stopped
-    environment:
-      - NODE_ENV=production
-      - GEMINI_API_KEY
-      - GEMINI_API_URL
-
   frontend:
     build:
       context: ./packages/simulator-ui
       dockerfile: Dockerfile.frontend
-      args:
-        - GEMINI_API_KEY
     image: nexus-gateway-frontend:latest
     ports:
       - "8080:80"
+    environment:
+      - VITE_API_PROXY=http://backend:3001
     depends_on:
       - backend
     restart: unless-stopped
+
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    image: nexus-gateway-backend:latest
+    ports:
+      - "3001:3001"
     environment:
-      - GEMINI_API_KEY
+      - NODE_ENV=production
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_API_URL=${GEMINI_API_URL}
+    restart: unless-stopped
+
+  query-service:
+    build:
+      context: ./packages/services/query-service
+      dockerfile: Dockerfile
+    image: nexus-gateway-query-service:latest
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - NEPTUNE_ENDPOINT=${NEPTUNE_ENDPOINT:-neptune:8182}
+      - NEPTUNE_PORT=8182
+    ports:
+      - "4000:4000"
+    depends_on:
+      - neptune
+    restart: unless-stopped
+
+  neptune:
+    image: amazon/neptune:latest
+    ports:
+      - "8182:8182"
+    environment:
+      - NEPTUNE_DB_CLUSTER_ID=codeflow-neptune
+    volumes:
+      - neptune_data:/var/lib/neptune
+    restart: unless-stopped
+
+  # Development override service
+  frontend-dev:
+    build:
+      context: ./packages/simulator-ui
+      dockerfile: Dockerfile.frontend
+    image: nexus-gateway-frontend-dev:latest
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_PROXY=http://backend:3001
+      - NODE_ENV=development
+    depends_on:
+      - backend
+    volumes:
+      - ./packages/simulator-ui:/app
+      - /app/node_modules
+    command: npm run dev
+    profiles:
+      - development
+
+volumes:
+  neptune_data:

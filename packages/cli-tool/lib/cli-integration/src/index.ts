@@ -21,9 +21,51 @@ import fs from 'fs';
 // Load environment variables
 config();
 
+// Validate and sanitize environment variables
+const validateEnvironmentVariables = () => {
+  const envVars = {
+    LOG_LEVEL: process.env.LOG_LEVEL || 'info',
+    INGESTION_SERVICE_URL: process.env.INGESTION_SERVICE_URL || 'http://localhost:3000',
+    QUERY_SERVICE_URL: process.env.QUERY_SERVICE_URL || 'http://localhost:4000',
+    REQUEST_TIMEOUT: process.env.REQUEST_TIMEOUT || '30000',
+    REQUEST_RETRIES: process.env.REQUEST_RETRIES || '3'
+  };
+
+  // Validate log level
+  const validLogLevels = ['error', 'warn', 'info', 'debug'];
+  if (!validLogLevels.includes(envVars.LOG_LEVEL)) {
+    throw new Error(`Invalid LOG_LEVEL: ${envVars.LOG_LEVEL}. Must be one of: ${validLogLevels.join(', ')}`);
+  }
+
+  // Validate URLs
+  if (!envVars.INGESTION_SERVICE_URL.startsWith('http://') && !envVars.INGESTION_SERVICE_URL.startsWith('https://')) {
+    throw new Error(`Invalid INGESTION_SERVICE_URL: ${envVars.INGESTION_SERVICE_URL}. Must start with http:// or https://`);
+  }
+
+  if (!envVars.QUERY_SERVICE_URL.startsWith('http://') && !envVars.QUERY_SERVICE_URL.startsWith('https://')) {
+    throw new Error(`Invalid QUERY_SERVICE_URL: ${envVars.QUERY_SERVICE_URL}. Must start with http:// or https://`);
+  }
+
+  // Validate timeout
+  const timeout = parseInt(envVars.REQUEST_TIMEOUT, 10);
+  if (isNaN(timeout) || timeout <= 0 || timeout > 300000) { // Max 5 minutes
+    throw new Error(`Invalid REQUEST_TIMEOUT: ${envVars.REQUEST_TIMEOUT}. Must be between 1 and 300000 milliseconds`);
+  }
+
+  // Validate retries
+  const retries = parseInt(envVars.REQUEST_RETRIES, 10);
+  if (isNaN(retries) || retries <= 0 || retries > 10) {
+    throw new Error(`Invalid REQUEST_RETRIES: ${envVars.REQUEST_RETRIES}. Must be between 1 and 10`);
+  }
+
+  return envVars;
+};
+
+const envVars = validateEnvironmentVariables();
+
 // Configure logger
 const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
+  level: envVars.LOG_LEVEL,
   format: winston.format.combine(
     winston.format.timestamp(),
     winston.format.errors({ stack: true }),
@@ -636,7 +678,7 @@ export class CLIIntegrationService {
   }
 
   /**
-   * Make HTTP request to backend service with retry logic
+   * Make HTTP request to backend service with retry logic and security validation
    */
   private async makeBackendRequest(
     url: string,
@@ -645,21 +687,32 @@ export class CLIIntegrationService {
   ): Promise<any> {
     let lastError: any;
 
+    // Validate URL to prevent SSRF attacks
+    if (!this.isValidUrl(url)) {
+      throw new Error('Invalid URL provided');
+    }
+
+    // Sanitize headers to prevent header injection
+    const sanitizedHeaders = this.sanitizeHeaders(headers);
+
     for (let attempt = 1; attempt <= this.config.retries; attempt++) {
       try {
         const response = await axios.post(url, data, {
           headers: {
-            ...headers,
-            'X-Attempt': attempt.toString()
+            ...sanitizedHeaders,
+            'X-Attempt': attempt.toString(),
+            'User-Agent': 'Codeflow-CLI-Integration/1.0'
           },
-          timeout: this.config.timeout
+          timeout: this.config.timeout,
+          maxRedirects: 3,
+          validateStatus: (status) => status < 500 // Don't throw on 4xx errors
         });
 
         return response;
       } catch (error) {
         lastError = error;
         logger.warn(`Backend request attempt ${attempt} failed`, {
-          url,
+          url: this.sanitizeUrlForLogging(url),
           attempt,
           error: this.formatError(error)
         });
@@ -672,6 +725,58 @@ export class CLIIntegrationService {
     }
 
     throw lastError;
+  }
+
+  /**
+   * Validate URL to prevent SSRF attacks
+   */
+  private isValidUrl(url: string): boolean {
+    try {
+      const urlObj = new URL(url);
+      
+      // Block internal network ranges
+      const hostname = urlObj.hostname;
+      if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('10.') || 
+          hostname.startsWith('192.168.') || hostname.match(/^172\.(1[6-9]|2\d|3[01])\./)) {
+        return false;
+      }
+
+      // Only allow HTTP/HTTPS protocols
+      return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Sanitize headers to prevent header injection
+   */
+  private sanitizeHeaders(headers: Record<string, string>): Record<string, string> {
+    const sanitized: Record<string, string> = {};
+    
+    for (const [key, value] of Object.entries(headers)) {
+      // Remove potentially dangerous headers
+      if (key.toLowerCase().includes('cookie') || key.toLowerCase().includes('authorization')) {
+        continue;
+      }
+      
+      // Sanitize header values
+      sanitized[key] = value.replace(/[^\x20-\x7E]/g, '');
+    }
+    
+    return sanitized;
+  }
+
+  /**
+   * Sanitize URL for logging to prevent log injection
+   */
+  private sanitizeUrlForLogging(url: string): string {
+    try {
+      const urlObj = new URL(url);
+      return `${urlObj.protocol}//${urlObj.hostname}${urlObj.pathname}`;
+    } catch {
+      return url.replace(/[\r\n]/g, '');
+    }
   }
 
   /**

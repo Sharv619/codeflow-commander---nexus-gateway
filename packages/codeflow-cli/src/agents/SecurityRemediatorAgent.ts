@@ -215,10 +215,12 @@ if (!isValid) {
       {
         pattern: 'encryption',
         implementation: `
-import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
+import { createCipheriv, createDecipheriv, randomBytes, createHash } from 'crypto';
 
 const algorithm = 'aes-256-gcm';
-const key = randomBytes(32); // 256-bit key
+const key = process.env.ENCRYPTION_KEY 
+  ? Buffer.from(process.env.ENCRYPTION_KEY, 'hex')
+  : crypto.randomBytes(32); // 256-bit key from environment or secure random
 const iv = randomBytes(16); // Initialization vector
 
 // Encryption
@@ -518,9 +520,9 @@ decrypted += decipher.final('utf8');
         sessionId: `session_${Date.now()}`,
         analysisType: 'diff',
         triggerSource: 'manual',
-        analyzedContent: {
+        analyzedContent: request.target.filePath ? {
           filePath: request.target.filePath
-        }
+        } : {}
       },
       metadata: {
         generatedBy: this.capabilities.id,

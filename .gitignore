@@ -28,6 +28,9 @@ pip-delete-this-directory.txt
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
+!.vscode/settings.json.example
+!.vscode/launch.json.example
+!.vscode/tasks.json.example
 .idea
 .DS_Store
 *.suo
@@ -37,31 +40,62 @@ pip-delete-this-directory.txt
 *.sw?
 
 # Environment files
-.env.example
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+.env.staging
 
 # Test files
 simple-test.js
 test-validation.js
 isolation-test.js
+test-graphql-server.js
+test-csp-injection.sh
+smoke-test.js
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
 
-# Phase 3 & Phase 4 Documentation (keep technical work separate)
-PHASE3_*.md
-PHASE4_*.md
-todo_list.md
+# Build outputs
+build/
+out/
+dist/
+coverage/
+.nyc_output/
+.parcel-cache/
+
+# Cache directories
+.cache/
+.eslintcache
+.stylelintcache
+*.tgz
 
 # Temporary files
 tmp_*
 *.tmp
 *.temp
+*.swp
+*.swo
+*~
 
-# LinkedIn calendar files
-codeflow-linkedin-calendar-import.csv
-codeflow-linkedin-calendar-import.json
+# Generated files
+results.json
+metadata.json
+constants.ts
+types.ts
+pipelineConfigs.ts
+simulationEngine.ts
+
+# Documentation files that shouldn't be committed
+2025-11-01_agent_changes.md
+2025-11-01_full_stack_integration.md
+cli-tool-security-updates.md
+linkedin-post.md
+security-audit-report.md
+todo_list.md
 
 # OS files
 Thumbs.db
@@ -70,14 +104,63 @@ Thumbs.db
 .Spotlight-V100
 .Trashes
 
-# Build outputs
-build/
-out/
-coverage/
-.nyc_output/
+# Docker files
+*.log
+*.log.*
+docker-compose.override.yml
+.dockerignore
 
-# Cache directories
-.cache/
-.parcel-cache/
-.eslintcache
-.stylelintcache
+# VS Code settings that shouldn't be committed
+.vscode/settings.json
+.vscode/launch.json
+.vscode/tasks.json
+
+# CLI tool configuration
+~/.codeflow-hook/
+~/.codeflow-hook/config.json
+
+# Security files
+*.key
+*.pem
+*.crt
+secrets/
+credentials.json
+service-account.json
+
+# IDE files
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+.factorypath
+
+# Backup files
+*.bak
+*.backup
+*.orig
+
+# OS X specific
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Windows specific
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux specific
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*

@@ -72,15 +72,24 @@ codeflow-hook install
 For pipeline prototyping and interactive analysis:
 
 #### **Local Development Setup**
-1. **Install dependencies**
+1. **Clone and setup**
    ```bash
-   npm install
+   git clone <repository-url>
+   cd codeflow-commander---nexus-gateway
    ```
 
-2. **Configure Environment Variables**
-   - Create `.env` file with `GEMINI_API_KEY` and `VITE_API_PROXY=http://localhost:3001`
+2. **Install dependencies**
+   ```bash
+   npm run setup
+   ```
 
-3. **Run Services**
+3. **Configure Environment Variables**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your API keys and configuration
+   ```
+
+4. **Run Services**
    ```bash
    # Terminal 1: Frontend
    npm run dev
@@ -96,13 +105,33 @@ docker compose up --build -d
 
 # Frontend: http://localhost:8080
 # Backend API: http://localhost:3001
+# Query Service: http://localhost:4000
+# Neptune DB: http://localhost:8182
 ```
 
-### **Development Override (Hot-Reload in Container)**
+#### **Development with Docker**
 ```bash
-# Uses docker-compose.override.yml for development
-docker compose up --build -d
-# Vite dev server on port 5173 with hot reload
+# Use development profile for hot-reload
+docker compose --profile development up --build
+# Frontend dev server: http://localhost:5173
+```
+
+#### **Quick Commands**
+```bash
+# Build all packages
+npm run build:all
+
+# Run linting
+npm run lint
+
+# Type checking
+npm run typecheck
+
+# Run tests
+npm run test:all
+
+# Clean setup
+npm run setup
 ```
 
 ## 🏛️ **Architecture Details**

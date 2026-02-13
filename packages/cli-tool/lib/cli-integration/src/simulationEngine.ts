@@ -26,6 +26,10 @@ export class SimulationEngine {
     const executionId = this.generateExecutionId();
     const startTime = Date.now();
 
+    // Validate configuration before execution
+    this.validatePipelineConfig(config);
+    this.validateEnvironmentVariables();
+
     this.context = {
       pipelineId: config.id,
       executionId,
@@ -102,6 +106,103 @@ export class SimulationEngine {
         config,
         logs
       };
+    }
+  }
+
+  /**
+   * Validate environment variables for security
+   */
+  private validateEnvironmentVariables(): void {
+    // Validate environment variables that might affect simulation
+    const envVars = {
+      NODE_ENV: process.env.NODE_ENV || 'development',
+      LOG_LEVEL: process.env.LOG_LEVEL || 'info',
+      SIMULATION_TIMEOUT: process.env.SIMULATION_TIMEOUT || '300000', // 5 minutes default
+      MAX_CONCURRENCY: process.env.MAX_CONCURRENCY || '5'
+    };
+
+    // Validate NODE_ENV
+    const validNodeEnvs = ['development', 'test', 'production'];
+    if (!validNodeEnvs.includes(envVars.NODE_ENV)) {
+      throw new Error(`Invalid NODE_ENV: ${envVars.NODE_ENV}. Must be one of: ${validNodeEnvs.join(', ')}`);
+    }
+
+    // Validate LOG_LEVEL
+    const validLogLevels = ['error', 'warn', 'info', 'debug'];
+    if (!validLogLevels.includes(envVars.LOG_LEVEL)) {
+      throw new Error(`Invalid LOG_LEVEL: ${envVars.LOG_LEVEL}. Must be one of: ${validLogLevels.join(', ')}`);
+    }
+
+    // Validate simulation timeout
+    const timeout = parseInt(envVars.SIMULATION_TIMEOUT, 10);
+    if (isNaN(timeout) || timeout <= 0 || timeout > 3600000) { // Max 1 hour
+      throw new Error(`Invalid SIMULATION_TIMEOUT: ${envVars.SIMULATION_TIMEOUT}. Must be between 1 and 3600000 milliseconds`);
+    }
+
+    // Validate max concurrency
+    const concurrency = parseInt(envVars.MAX_CONCURRENCY, 10);
+    if (isNaN(concurrency) || concurrency <= 0 || concurrency > 20) {
+      throw new Error(`Invalid MAX_CONCURRENCY: ${envVars.MAX_CONCURRENCY}. Must be between 1 and 20`);
+    }
+  }
+
+  /**
+   * Validate pipeline configuration for security and correctness
+   */
+  private validatePipelineConfig(config: PipelineConfig): void {
+    // Validate pipeline ID format
+    if (!config.id || !/^[a-z0-9-]+$/.test(config.id)) {
+      throw new Error('Invalid pipeline ID format - must contain only lowercase letters, numbers, and hyphens');
+    }
+
+    // Validate stage configurations
+    if (!config.stages || config.stages.length === 0) {
+      throw new Error('Pipeline must contain at least one stage');
+    }
+
+    // Validate each stage
+    const stageIds = new Set<string>();
+    for (const stage of config.stages) {
+      // Check for duplicate stage IDs
+      if (stageIds.has(stage.id)) {
+        throw new Error(`Duplicate stage ID found: ${stage.id}`);
+      }
+      stageIds.add(stage.id);
+
+      // Validate stage ID format
+      if (!/^[a-z0-9-]+$/.test(stage.id)) {
+        throw new Error(`Invalid stage ID format: ${stage.id}`);
+      }
+
+      // Validate dependencies don't create cycles (basic check)
+      if (stage.dependencies.includes(stage.id)) {
+        throw new Error(`Stage ${stage.id} cannot depend on itself`);
+      }
+
+      // Validate timeout values
+      if (stage.timeout <= 0 || stage.timeout > 7200000) { // Max 2 hours
+        throw new Error(`Invalid timeout for stage ${stage.id}: must be between 1ms and 2 hours`);
+      }
+
+      // Validate success rate
+      if (stage.successRate < 0 || stage.successRate > 1) {
+        throw new Error(`Invalid success rate for stage ${stage.id}: must be between 0 and 1`);
+      }
+
+      // Validate duration range
+      if (stage.durationRange.min <= 0 || stage.durationRange.max <= 0 || 
+          stage.durationRange.min > stage.durationRange.max) {
+        throw new Error(`Invalid duration range for stage ${stage.id}`);
+      }
+    }
+
+    // Validate pipeline settings
+    if (config.settings.maxConcurrency <= 0 || config.settings.maxConcurrency > 10) {
+      throw new Error('Invalid maxConcurrency setting: must be between 1 and 10');
+    }
+
+    if (config.settings.timeout <= 0 || config.settings.timeout > 86400000) { // Max 24 hours
+      throw new Error('Invalid pipeline timeout: must be between 1ms and 24 hours');
     }
   }
 
@@ -381,18 +482,23 @@ export class SimulationEngine {
   ): { success: boolean; logs: string[]; metrics: StageMetrics; errors?: ErrorInfo[] } {
     const logs: string[] = [];
 
-    logs.push(`[${new Date().toISOString()}] 🐳 Building Docker image \`${stageConfig.config.imageName || 'app:latest'}\``);
-    logs.push(`[${new Date().toISOString()}] 📦 Step 1/8 : FROM ${stageConfig.config.baseImage || 'node:18-alpine'}`);
+    // Sanitize input to prevent command injection
+    const imageName = this.sanitizeInput(stageConfig.config.imageName || 'app:latest');
+    const baseImage = this.sanitizeInput(stageConfig.config.baseImage || 'node:18-alpine');
+
+    logs.push(`[${new Date().toISOString()}] 🐳 Building Docker image \`${imageName}\``);
+    logs.push(`[${new Date().toISOString()}] 📦 Step 1/8 : FROM ${baseImage}`);
 
     if (success) {
       logs.push(`[${new Date().toISOString()}] 📦 Step 8/8 : CMD ["npm", "start"]`);
       logs.push(`[${new Date().toISOString()}] ✅ Successfully built ${stageConfig.config.imageId || 'a1b2c3d4e5f6'}`);
       logs.push(`[${new Date().toISOString()}] 🔍 Image size: ${50 + Math.random() * 200}MB`);
 
-      // Create artifact
+      // Create artifact with sanitized data
       if (this.context) {
+        const sanitizedImageName = this.sanitizeInput(stageConfig.config.imageName || 'app');
         this.context.artifacts.set(`${stageConfig.id}-image`, {
-          name: `${stageConfig.config.imageName || 'app'}.tar.gz`,
+          name: `${sanitizedImageName}.tar.gz`,
           type: 'docker-image',
           size: Math.round(50 + Math.random() * 200) * 1024 * 1024,
           path: `/artifacts/${stageConfig.id}`,
@@ -404,6 +510,14 @@ export class SimulationEngine {
     }
 
     return { success, logs, metrics };
+  }
+
+  /**
+   * Sanitize input to prevent injection attacks
+   */
+  private sanitizeInput(input: string): string {
+    // Remove potentially dangerous characters
+    return input.replace(/[^\w\-\.\/:]/g, '');
   }
 
   /**

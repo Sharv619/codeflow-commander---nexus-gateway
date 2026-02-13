@@ -273,6 +273,7 @@ export class TicketToPRAgent extends AutonomousAgent {
     } catch (error) {
       this.logger.error('Ticket-to-PR execution failed', { executionId, error });
 
+      const escalation = this.shouldEscalate(error, context);
       return {
         agentId: this.agentId,
         executionId,
@@ -282,7 +283,7 @@ export class TicketToPRAgent extends AutonomousAgent {
         outputs: [],
         validationResults: [],
         notificationsSent: [],
-        escalationTriggered: this.shouldEscalate(error, context),
+        ...(escalation && { escalationTriggered: escalation }),
         metrics: { duration: Date.now() - startTime, memoryUsage: 0, apiCalls: 0, validationsPerformed: 0, confidenceScores: [], riskLevel: 'high' }
       };
     }
@@ -512,7 +513,7 @@ export class TicketToPRAgent extends AutonomousAgent {
     return {
       type: 'generate',
       timestamp: new Date(),
-      description: `Generate ${filePath}`,
+        description: `Generate ${filePath || 'unknown file'}`,
       target: filePath,
       parameters: {},
       result: { fileGenerated: true, linesOfCode: 50 },
@@ -547,7 +548,8 @@ export class TicketToPRAgent extends AutonomousAgent {
   }
 
   private calculateExecutionMetrics(implementation: Implementation): ExecutionMetrics {
-    const totalDuration = implementation.actions?.reduce((sum, action) => sum + (action?.duration || 0), 0) || 0;
+    const actions: AgentAction[] = implementation.actions || [];
+    const totalDuration = actions.reduce((sum, action) => sum + (action?.duration ?? 0), 0);
     return {
       duration: totalDuration,
       memoryUsage: 0, // Would measure actual memory usage

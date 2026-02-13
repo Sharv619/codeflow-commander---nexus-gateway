@@ -1,4 +1,4 @@
-import fs from 'fs';
+bimport fs from 'fs';
 import crypto from 'crypto';
 
 const indexPath = 'packages/simulator-ui/index.html';
@@ -14,7 +14,11 @@ let match;
 const hashes = [];
 while ((match = reInline.exec(html)) !== null) {
   const code = match[1].trim();
-  if (code) hashes.push(sha256Base64(code));
+  if (code) {
+    const hash = sha256Base64(code);
+    hashes.push(hash);
+    console.log(`Generated hash for inline script: ${hash}`);
+  }
 }
 
 if (hashes.length === 0) {
