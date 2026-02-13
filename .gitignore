@@ -164,3 +164,16 @@ $RECYCLE.BIN/
 .directory
 .Trash-*
 .nfs*
+PHASE3_CHALLENGES_MITIGATIONS.md
+PHASE3_CLI_WORKFLOWS.md
+PHASE3_DATA_MODEL.md
+backend/.env.example
+cli-tool/.env.example
+docs/archive/PHASE3_AGENT_EVOLUTION.md
+docs/archive/PHASE3_ARCHITECTURE.md
+docs/archive/PHASE4_ARCHITECTURE.md
+docs/archive/PHASE4_CHALLENGES_MITIGATIONS.md
+docs/archive/PHASE4_COMPONENT_EVOLUTION.md
+docs/archive/PHASE4_DATA_FLOW_INTEGRATION.md
+docs/archive/PHASE4_DATA_MODELS.md
+.gitignore

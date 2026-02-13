@@ -1,4 +1,4 @@
-bimport fs from 'fs';
+import fs from 'fs';
 import crypto from 'crypto';
 
 const indexPath = 'packages/simulator-ui/index.html';
@@ -9,7 +9,7 @@ function sha256Base64(s) {
 }
 
 const html = fs.readFileSync(indexPath, 'utf8');
-const reInline = /<script>([\s\S]*?)<\/script>/g;
+const reInline = /<script[^>]*>([\s\S]*?)<\/script>/g;
 let match;
 const hashes = [];
 while ((match = reInline.exec(html)) !== null) {
@@ -31,8 +31,8 @@ let nginx = fs.readFileSync(nginxPath, 'utf8');
 const hashList = hashes.map(h => `'${h}'`).join(' ');
 const productionCSP = `add_header Content-Security-Policy "default-src 'self'; script-src 'self' ${hashList}; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; connect-src 'self' http://backend:3001; font-src 'self' https: data:";`;
 
-// Replace the development CSP header (the one with 'unsafe-inline' and external domains)
-nginx = nginx.replace(/add_header Content-Security-Policy "default-src 'self' http: https: data:; script-src 'self' 'unsafe-inline' https:\/\/cdn\.tailwindcss\.com https:\/\/aistudiocdn\.com 'unsafe-eval'; style-src 'self' 'unsafe-inline' https:\/\/fonts\.googleapis\.com https:\/\/cdn\.tailwindcss\.com; img-src 'self' data: http:\/\/localhost:3001; connect-src 'self' http:\/\/backend:3001 http:\/\/localhost:3001 ws:; font-src 'self' https: data:";/, productionCSP);
+// Replace the development CSP header (the one with the old hash)
+nginx = nginx.replace(/add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'sha256-TW8mFok1yWjLY0UDYVBQBLO\/GFLbr3lbgMDcKu15Qik='; style-src 'self' 'unsafe-inline' https:\/\/fonts\.googleapis\.com; img-src 'self' data:; connect-src 'self' http:\/\/backend:3001; font-src 'self' https: data:";/, productionCSP);
 
 fs.writeFileSync(nginxPath, nginx, 'utf8');
 console.log('Injected CSP hashes into', nginxPath);
