@@ -1,0 +1,16 @@
+[
+  {
+    "Topic": "CodeFlow Sentinel: ML-Anomaly Detection Guardrails",
+    "Post Date": "2025-12-01",
+    "status": "To Do",
+    "context": "Solving my biggest anxiety - preventing secrets from leaking into production\n\n```python\nfrom sklearn.ensemble import IsolationForest\nimport numpy as np\n\ndetector = IsolationForest(contamination=0.1, random_state=42)\ntelemetry_data = np.array([[0.5, 0.3, 0.8], [0.1, 0.9, 0.2]])\nanomaly_scores = detector.fit_predict(telemetry_data)\n```\n\nBorn from curiosity about what makes systems truly secure.\n\nCTA: Never worry about secrets again",
+    "LINKEDIN URL": ""
+  },
+  {
+    "Topic": "CodeFlow Commander: Complete Security Platform",
+    "Post Date": "2025-12-02",
+    "status": "To Do",
+    "context": "30 days of technical deep-dives showcasing code that solves real developer anxiety about deployments, compliance, and security.\n\nEach post features working code - the curiosity-driven approach that led me to build these tools that solve my own deployment nightmares.\n\nStarting tomorrow: ML-powered anomaly detection, FastAPI security endpoints, Prometheus monitoring, and more.\n\nCTA: Follow for enterprise-grade security code you can actually use",
+    "LINKEDIN URL": ""
+  }
+]
