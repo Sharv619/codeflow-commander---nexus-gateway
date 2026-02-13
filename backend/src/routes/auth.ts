@@ -33,14 +33,14 @@ const changePasswordSchema = z.object({
 });
 
 // Register new user
-router.post('/register', async (req: Request, res: Response) => {
+router.post('/register', async (req: Request, res: Response): Promise<void> => {
   try {
     const validatedData = registerSchema.parse(req.body);
 
     // Check if user already exists
     const existingUser = await User.findOne({ email: validatedData.email });
     if (existingUser) {
-      return res.status(400).json({
+      res.status(400).json({
         error: 'Registration failed',
         message: 'User with this email already exists',
       });
@@ -78,7 +78,7 @@ router.post('/register', async (req: Request, res: Response) => {
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({
+      res.status(400).json({
         error: 'Validation failed',
         message: error.errors.map(e => e.message).join(', '),
       });
@@ -93,14 +93,14 @@ router.post('/register', async (req: Request, res: Response) => {
 });
 
 // Login user
-router.post('/login', async (req: Request, res: Response) => {
+router.post('/login', async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, password } = loginSchema.parse(req.body);
 
     // Find user by email
     const user = await User.findOne({ email }).select('+password');
     if (!user) {
-      return res.status(401).json({
+      res.status(401).json({
         error: 'Authentication failed',
         message: 'Invalid email or password',
       });
@@ -108,7 +108,7 @@ router.post('/login', async (req: Request, res: Response) => {
 
     // Check if account is active
     if (!user.isActive) {
-      return res.status(401).json({
+      res.status(401).json({
         error: 'Authentication failed',
         message: 'Account is deactivated',
       });
@@ -117,7 +117,7 @@ router.post('/login', async (req: Request, res: Response) => {
     // Verify password
     const isValidPassword = await user.comparePassword(password);
     if (!isValidPassword) {
-      return res.status(401).json({
+      res.status(401).json({
         error: 'Authentication failed',
         message: 'Invalid email or password',
       });
@@ -148,7 +148,7 @@ router.post('/login', async (req: Request, res: Response) => {
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({
+      res.status(400).json({
         error: 'Validation failed',
         message: error.errors.map(e => e.message).join(', '),
       });
@@ -163,11 +163,11 @@ router.post('/login', async (req: Request, res: Response) => {
 });
 
 // Get current user profile
-router.get('/profile', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/profile', authenticate, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const user = req.user;
     if (!user) {
-      return res.status(401).json({
+      res.status(401).json({
         error: 'Authentication required',
         message: 'You must be logged in to access this resource',
       });
@@ -196,11 +196,11 @@ router.get('/profile', authenticate, async (req: AuthenticatedRequest, res: Resp
 });
 
 // Update user profile
-router.put('/profile', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+router.put('/profile', authenticate, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const user = req.user;
     if (!user) {
-      return res.status(401).json({
+      res.status(401).json({
         error: 'Authentication required',
         message: 'You must be logged in to update your profile',
       });
@@ -228,7 +228,7 @@ router.put('/profile', authenticate, async (req: AuthenticatedRequest, res: Resp
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({
+      res.status(400).json({
         error: 'Validation failed',
         message: error.errors.map(e => e.message).join(', '),
       });
@@ -243,11 +243,11 @@ router.put('/profile', authenticate, async (req: AuthenticatedRequest, res: Resp
 });
 
 // Change password
-router.put('/change-password', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+router.put('/change-password', authenticate, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const user = req.user;
     if (!user) {
-      return res.status(401).json({
+      res.status(401).json({
         error: 'Authentication required',
         message: 'You must be logged in to change your password',
       });
@@ -258,7 +258,7 @@ router.put('/change-password', authenticate, async (req: AuthenticatedRequest, r
     // Verify current password
     const isValidCurrentPassword = await user.comparePassword(currentPassword);
     if (!isValidCurrentPassword) {
-      return res.status(400).json({
+      res.status(400).json({
         error: 'Invalid current password',
         message: 'Current password is incorrect',
       });
@@ -273,7 +273,7 @@ router.put('/change-password', authenticate, async (req: AuthenticatedRequest, r
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({
+      res.status(400).json({
         error: 'Validation failed',
         message: error.errors.map(e => e.message).join(', '),
       });
@@ -288,7 +288,7 @@ router.put('/change-password', authenticate, async (req: AuthenticatedRequest, r
 });
 
 // Admin: Get all users
-router.get('/users', authenticate, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/users', authenticate, requireAdmin, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
@@ -321,11 +321,11 @@ router.get('/users', authenticate, requireAdmin, async (req: AuthenticatedReques
 });
 
 // Admin: Get user by ID
-router.get('/users/:id', authenticate, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/users/:id', authenticate, requireAdmin, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const user = await User.findById(req.params.id).select('-password');
     if (!user) {
-      return res.status(404).json({
+      res.status(404).json({
         error: 'User not found',
         message: 'User with the specified ID does not exist',
       });
@@ -334,7 +334,7 @@ router.get('/users/:id', authenticate, requireAdmin, async (req: AuthenticatedRe
     res.json({ user });
   } catch (error) {
     if (error instanceof Error && error.name === 'CastError') {
-      return res.status(400).json({
+      res.status(400).json({
         error: 'Invalid user ID',
         message: 'The provided user ID is not valid',
       });
@@ -349,11 +349,11 @@ router.get('/users/:id', authenticate, requireAdmin, async (req: AuthenticatedRe
 });
 
 // Admin: Update user
-router.put('/users/:id', authenticate, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+router.put('/users/:id', authenticate, requireAdmin, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) {
-      return res.status(404).json({
+      res.status(404).json({
         error: 'User not found',
         message: 'User with the specified ID does not exist',
       });
@@ -381,7 +381,7 @@ router.put('/users/:id', authenticate, requireAdmin, async (req: AuthenticatedRe
     });
   } catch (error) {
     if (error instanceof Error && error.name === 'CastError') {
-      return res.status(400).json({
+      res.status(400).json({
         error: 'Invalid user ID',
         message: 'The provided user ID is not valid',
       });
@@ -396,11 +396,11 @@ router.put('/users/:id', authenticate, requireAdmin, async (req: AuthenticatedRe
 });
 
 // Admin: Delete user
-router.delete('/users/:id', authenticate, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/users/:id', authenticate, requireAdmin, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) {
-      return res.status(404).json({
+      res.status(404).json({
         error: 'User not found',
         message: 'User with the specified ID does not exist',
       });
@@ -408,7 +408,7 @@ router.delete('/users/:id', authenticate, requireAdmin, async (req: Authenticate
 
     // Prevent deleting self
     if (req.user && user._id.toString() === req.user._id.toString()) {
-      return res.status(400).json({
+      res.status(400).json({
         error: 'Invalid operation',
         message: 'You cannot delete your own account',
       });
@@ -421,7 +421,7 @@ router.delete('/users/:id', authenticate, requireAdmin, async (req: Authenticate
     });
   } catch (error) {
     if (error instanceof Error && error.name === 'CastError') {
-      return res.status(400).json({
+      res.status(400).json({
         error: 'Invalid user ID',
         message: 'The provided user ID is not valid',
       });
@@ -436,13 +436,13 @@ router.delete('/users/:id', authenticate, requireAdmin, async (req: Authenticate
 });
 
 // Health check endpoint
-router.get('/health', async (req: Request, res: Response) => {
+router.get('/health', async (req: Request, res: Response): Promise<void> => {
   try {
     // Check database connection
     const isDbHealthy = await database.healthCheck();
 
     if (!isDbHealthy) {
-      return res.status(503).json({
+      res.status(503).json({
         status: 'unhealthy',
         database: 'disconnected',
       });

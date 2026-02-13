@@ -1,27 +1,45 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import dotenv from 'dotenv';
 
 /**
  * cli-tool/src/utils/config.js
  * Configuration management for codeflow-hook CLI
  * Handles feature flags and user settings
+ * Now supports .env files with cascading configuration
  */
+
+// Load environment files in order of precedence (later overrides earlier)
+// 1. Global config: ~/.codeflow-hook/.env
+// 2. Project config: .env (can be committed)
+// 3. Local overrides: .env.local (git-ignored, highest priority)
+const globalEnvPath = path.join(os.homedir(), '.codeflow-hook', '.env');
+if (fs.existsSync(globalEnvPath)) {
+  dotenv.config({ path: globalEnvPath });
+}
+dotenv.config({ path: '.env' });
+dotenv.config({ path: '.env.local' });
 
 const CONFIG_DIR = path.join(os.homedir(), '.codeflow-hook');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 
-// Default configuration
+// Default configuration - reads from environment variables first
 const DEFAULT_CONFIG = {
-  // AI provider settings
-  provider: 'gemini',
-  apiKey: '',
-  apiUrl: '',
-  model: '',
+  // AI provider settings (from .env)
+  provider: process.env.CODEFLOW_AI_PROVIDER || 'gemini',
+  apiKey: process.env.CODEFLOW_API_KEY || '',
+  apiUrl: process.env.CODEFLOW_API_URL || '',
+  model: process.env.CODEFLOW_MODEL || '',
+
+  // Multi-provider support
+  gemini_key: process.env.GEMINI_API_KEY || '',
+  openai_key: process.env.OPENAI_API_KEY || '',
+  anthropic_key: process.env.CLAUDE_API_KEY || '',
 
   // Knowledge features (Phase 3 & 4)
-  enableKnowledgeStore: false,
-  enableEnterpriseGraph: false,
+  enableKnowledgeStore: process.env.ENABLE_KNOWLEDGE_STORE === 'true',
+  enableEnterpriseGraph: process.env.ENABLE_ENTERPRISE_GRAPH === 'true',
 
   // Enterprise graph settings
   graphUrl: process.env.GRAPH_URL || '',
@@ -29,17 +47,17 @@ const DEFAULT_CONFIG = {
   graphPass: process.env.GRAPH_PASS || '',
 
   // CLI behavior
-  verbose: false,
-  dryRun: false,
+  verbose: process.env.CODEFLOW_VERBOSE === 'true',
+  dryRun: process.env.CODEFLOW_DRY_RUN === 'true',
 
   // Learning and analytics
   collectUsageStats: true,
   enableAutoSuggestions: true,
 
   // Advanced settings
-  cacheTimeout: 3600000, // 1 hour
-  maxRetries: 3,
-  timeout: 30000
+  cacheTimeout: parseInt(process.env.CODEFLOW_CACHE_TIMEOUT) || 3600000, // 1 hour
+  maxRetries: parseInt(process.env.CODEFLOW_MAX_RETRIES) || 3,
+  timeout: parseInt(process.env.CODEFLOW_TIMEOUT) || 30000
 };
 
 /**

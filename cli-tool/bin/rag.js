@@ -249,14 +249,18 @@ async function findKeyFiles(projectRoot) {
   }
 
   // Find interface/config files in root
-  const configPatterns = ['*.ts', '*.js', '*.json'].filter(ext => {
-    return fs.readdirSync(projectRoot)
-      .filter(file => file.endsWith(ext))
-      .filter(file => !keyFiles.some(kf => kf.endsWith(file)))
-      .map(file => path.join(projectRoot, file));
-  });
+  const rootExtensions = ['.ts', '.js', '.json'];
+  const rootFiles = fs.readdirSync(projectRoot)
+    .filter(file => {
+      const fullPath = path.join(projectRoot, file);
+      return fs.statSync(fullPath).isFile() &&
+        rootExtensions.some(ext => file.endsWith(ext)) &&
+        !keyFiles.includes(fullPath) &&
+        !file.startsWith('.');
+    })
+    .map(file => path.join(projectRoot, file));
 
-  keyFiles.push(...configPatterns.flat());
+  keyFiles.push(...rootFiles);
 
   return [...new Set(keyFiles)]; // Remove duplicates
 }

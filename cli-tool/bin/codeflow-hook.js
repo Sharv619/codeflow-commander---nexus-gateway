@@ -34,7 +34,7 @@ const program = new Command();
 
 program
   .name('codeflow-hook')
-  .description('Enterprss--gradegrade CI/CD simulwithr wode review, , complianccmvalldaiion,vltiosecurn y govadn ucerity governance')
+  .description('Enterprise-grade CI/CD simulator with code review, compliance validation, and security governance')
   .version('5.0.0');
 
 // Configure AI provider settings
@@ -79,8 +79,6 @@ program
     const hasNewKey = !!options.key;
     const isFirstTimeSetup = !existingConfig.provider && !existingConfig.apiKey;
     const shouldValidate = hasNewKey || isFirstTimeSetup;
-
-    console.log('VALIDATION DEBUG - provider:', requestedProvider, 'key_exists:', !!options.key, 'shouldValidate:', shouldValidate);
 
     if (shouldValidate && requestedApiKey) {
       console.log(chalk.blue('🔐 Validating API key for provider:', requestedProvider));
@@ -509,6 +507,49 @@ program
     }
   });
 
+// Sentinel Integration
+import { SentinelClient } from '../src/utils/sentinel-client.js';
+
+program
+  .command('sentinel <action>')
+  .description('Interact with CodeFlow Sentinel (Anomaly Detection)')
+  .action(async (action) => {
+    const sentinel = new SentinelClient();
+
+    switch (action) {
+      case 'status':
+        const status = await sentinel.getStatus();
+        if (status.status === 'healthy') {
+          console.log(chalk.green('✅ Sentinel Service is ONLINE'));
+          console.log(chalk.gray(`   Version: ${status.version}`));
+          if (status.history_size !== undefined) {
+            console.log(chalk.gray(`   History: ${status.history_size} events`));
+          }
+          if (status.detector_trained !== undefined) {
+            console.log(chalk.gray(`   Detector: ${status.detector_trained ? 'Trained' : 'Untrained'}`));
+          }
+        } else {
+          console.log(chalk.red('❌ Sentinel Service is OFFLINE or Unreachable'));
+          console.log(chalk.gray(`   Error: ${status.error}`));
+        }
+        break;
+
+      case 'metrics':
+        try {
+          const metrics = await sentinel.getMetrics();
+          console.log(chalk.blue('📊 Sentinel Metrics:'));
+          console.log(metrics);
+        } catch (e) {
+          console.log(chalk.red(`❌ Failed to get metrics: ${e.message}`));
+        }
+        break;
+
+      default:
+        console.log(chalk.red(`❌ Unknown action: ${action}`));
+        console.log(chalk.gray('Available actions: status, metrics'));
+    }
+  });
+
 // Show status
 program
   .command('status')
@@ -595,6 +636,28 @@ function getFallbackModels(provider) {
   }
 }
 
+async function validateApiKey(provider, apiKey) {
+  try {
+    switch (provider) {
+      case 'gemini':
+        const geminiResponse = await axios.get(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+        return geminiResponse.status === 200;
+      case 'openai':
+        const openaiResponse = await axios.get('https://api.openai.com/v1/models', {
+          headers: { 'Authorization': `Bearer ${apiKey}` }
+        });
+        return openaiResponse.status === 200;
+      case 'claude':
+        // Claude doesn't have a simple validation endpoint, just accept it
+        return true;
+      default:
+        return true;
+    }
+  } catch (error) {
+    throw new Error(`API key validation failed: ${error.response?.data?.error?.message || error.message}`);
+  }
+}
+
 function generateCodeReviewPrompt(diff) {
   return `You are "Codeflow", a world-class AI software engineering assistant acting as a Principal Engineer. Your mission is to perform a rigorous and constructive code review on the provided code changes.
 
@@ -640,23 +703,23 @@ async function callGemini(config, prompt) {
       parts: [{
         text: prompt
       }]
-    }],
-    generationConfig: {
-      temperature: 0.2,
-      topK: 40,
-      topP: 0.95,
-      maxOutputTokens: 2048,
-    }
+    }]
   };
 
-  const url = `${config.apiUrl}/${config.model}:generateContent?key=${config.apiKey}`;
-  const response = await axios.post(url, payload, {
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  });
+  try {
+    const response = await axios.post(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${config.apiKey}`,
+      payload,
+      { headers: { 'Content-Type': 'application/json' } }
+    );
 
-  return response.data.candidates[0].content.parts[0].text;
+    if (response.data.candidates && response.data.candidates.length > 0) {
+      return response.data.candidates[0].content.parts[0].text;
+    }
+    return "No response generated.";
+  } catch (error) {
+    throw new Error(`Gemini API request failed: ${error.response?.data?.error?.message || error.message}`);
+  }
 }
 
 async function callOpenAI(config, prompt) {
@@ -1008,8 +1071,8 @@ program
         console.log(chalk.red(`❌ Found ${filteredVulns.length} security vulnerabilities:`));
         filteredVulns.forEach((vuln, index) => {
           const severityColor = vuln.severity === 'CRITICAL' ? chalk.red :
-                               vuln.severity === 'HIGH' ? chalk.red :
-                               vuln.severity === 'MEDIUM' ? chalk.yellow : chalk.blue;
+            vuln.severity === 'HIGH' ? chalk.red :
+              vuln.severity === 'MEDIUM' ? chalk.yellow : chalk.blue;
           console.log(`${severityColor}   ${index + 1}. ${vuln.severity}: ${vuln.description}`);
           console.log(chalk.gray(`      📁 ${vuln.file}:${vuln.line || 'N/A'}`));
           console.log(chalk.gray(`      🔧 Rule: ${vuln.rule}`));
@@ -1074,9 +1137,9 @@ program
       });
 
       const riskColor = assessment.riskScore >= 80 ? chalk.red :
-                       assessment.riskScore >= 60 ? chalk.yellow : chalk.green;
+        assessment.riskScore >= 60 ? chalk.yellow : chalk.green;
       const riskLevel = assessment.riskScore >= 80 ? 'HIGH' :
-                       assessment.riskScore >= 60 ? 'MEDIUM' : 'LOW';
+        assessment.riskScore >= 60 ? 'MEDIUM' : 'LOW';
 
       console.log(riskColor(`🎯 Overall Risk Score: ${assessment.riskScore}/100 (${riskLevel})`));
 
@@ -1084,7 +1147,7 @@ program
         console.log(chalk.blue('\n📈 Risk Breakdown:'));
         assessment.factors.forEach(factor => {
           const factorColor = factor.score >= 70 ? chalk.red :
-                             factor.score >= 50 ? chalk.yellow : chalk.green;
+            factor.score >= 50 ? chalk.yellow : chalk.green;
           console.log(`   ${factorColor}${factor.name}: ${factor.score}/100 - ${factor.description}`);
         });
       }
@@ -1866,29 +1929,29 @@ program.parseAsync(process.argv);
 
 // [ARCHITECTURAL BINDING] Enterprise Knowledge Graph Integration
 async function activateEKG(query) {
-    try {
-        // Dynamic import to satisfy MMIL architecture requirements
-        const { KnowledgeGraph } = await import('../src/knowledge/ekg-core.js');
-        const ekg = new KnowledgeGraph();
+  try {
+    // Dynamic import to satisfy MMIL architecture requirements
+    const { KnowledgeGraph } = await import('../src/knowledge/ekg-core.js');
+    const ekg = new KnowledgeGraph();
 
-        console.log(`[EKG] 🔍 Processing semantic query: ${query?.substring(0, 50)}...`);
-        const results = await ekg.findSemanticDependencies(query);
+    console.log(`[EKG] 🔍 Processing semantic query: ${query?.substring(0, 50)}...`);
+    const results = await ekg.findSemanticDependencies(query);
 
-        if (results && results.length > 0) {
-            console.log(`[EKG] ✅ Found ${results.length} semantic dependencies`);
-            return results;
-        } else {
-            console.log(`[EKG] ℹ️ No semantic dependencies found`);
-            return [];
-        }
-
-    } catch (error) {
-        console.error('[EKG] ❌ Failed to activate knowledge graph:', error.message);
-        console.error('[EKG] Falling back to basic text matching');
-
-        // Fallback implementation if EKG fails
-        return query ? [{ content: `Basic search for: ${query}`, type: 'fallback' }] : [];
+    if (results && results.length > 0) {
+      console.log(`[EKG] ✅ Found ${results.length} semantic dependencies`);
+      return results;
+    } else {
+      console.log(`[EKG] ℹ️ No semantic dependencies found`);
+      return [];
     }
+
+  } catch (error) {
+    console.error('[EKG] ❌ Failed to activate knowledge graph:', error.message);
+    console.error('[EKG] Falling back to basic text matching');
+
+    // Fallback implementation if EKG fails
+    return query ? [{ content: `Basic search for: ${query}`, type: 'fallback' }] : [];
+  }
 }
 
 global.activateEKG = activateEKG;

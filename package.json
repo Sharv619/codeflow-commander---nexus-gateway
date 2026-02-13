@@ -1,74 +1,56 @@
 {
-  "name": "codeflow-commander-nexus-gateway",
+  "name": "codeflow-commander",
   "version": "1.0.0",
-  "description": "The Autonomous Engineering Platform - Complete ecosystem for AI-powered development workflows",
-  "main": "index.js",
+  "description": "Enterprise-grade CI/CD simulator with AI code review, compliance validation, and security governance",
+  "private": true,
+  "type": "module",
   "workspaces": [
-    "cli-tool",
-    "codeflow-sentinel",
     "backend",
-    "codeflow-cli"
+    "cli-tool"
   ],
   "scripts": {
-    "test": "npm run test --workspaces",
-    "test:unit": "npm run test:unit --workspaces",
-    "test:e2e": "npm run test:e2e --workspaces",
-    "test:integration": "npm run test --workspace=cli-tool -- --testPathPattern='tests/integration'",
-    "test:security": "npm run test:security --workspace=cli-tool",
-    "lint": "npm run lint --workspaces",
+    "install-all": "npm install && npm run install:workspaces",
+    "install:workspaces": "npm run --workspace backend install && npm run --workspace cli-tool install",
     "build": "npm run build --workspaces",
-    "ci": "npm run ci --workspace=cli-tool",
-    "verify": "./verify_ecosystem.sh",
-    "audit": "./tests/verification/deep_audit.sh",
-    "rc": "./rc_verify.sh",
-    "install:all": "npm install",
-    "setup": "node setup.js",
-    "docs": "npm run docs --workspace=cli-tool",
-    "health-check": "npm run health-check --workspace=cli-tool",
-    "benchmark": "npm run benchmark --workspace=cli-tool"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/Sharv619/codeflow-commander---nexus-gateway.git"
+    "test": "npm run test --workspaces",
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "dev:frontend": "vite",
+    "dev:backend": "npm run --workspace backend dev",
+    "dev:cli": "npm run --workspace cli-tool dev",
+    "clean": "npm run clean --workspaces",
+    "lint": "eslint .",
+    "format": "prettier --write ."
   },
   "keywords": [
+    "ci-cd",
     "ai",
-    "ml",
-    "devops",
-    "automation",
     "code-review",
     "compliance",
     "security",
-    "enterprise",
-    "developer-tools",
-    "autonomous-engineering"
+    "enterprise"
   ],
-  "author": "CodeFlow Commander Team",
+  "author": "CodeFlow Team",
   "license": "MIT",
-  "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=8.0.0"
-  },
-  "dependencies": {},
   "devDependencies": {
-    "@typescript-eslint/eslint-plugin": "^6.0.0",
-    "@typescript-eslint/parser": "^6.0.0",
-    "eslint": "^8.0.0",
-    "husky": "^8.0.0",
-    "lint-staged": "^13.0.0",
-    "npm-run-all": "^4.1.5",
-    "prettier": "^3.0.0"
+    "@types/react": "^18.2.61",
+    "@types/react-dom": "^18.2.19",
+    "@typescript-eslint/eslint-plugin": "^7.2.0",
+    "@typescript-eslint/parser": "^7.2.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "concurrently": "^8.2.2",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.5",
+    "prettier": "^3.2.5",
+    "typescript": "^5.2.2",
+    "vite": "^5.1.4"
   },
-  "husky": {
-    "hooks": {
-      "pre-commit": "lint-staged",
-      "pre-push": "npm run test"    }
+  "dependencies": {
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "react-icons": "^5.5.0"
   },
-  "lint-staged": {
-    "*.{js,ts,jsx,tsx,json,md}": [
-      "prettier --write",
-      "eslint --fix"
-    ]
-  },
-  "private": true
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }

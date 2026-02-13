@@ -13,6 +13,9 @@ import authRoutes from './routes/auth.js';
 // Import middleware
 import { AuthMiddleware } from './middleware/auth.js';
 
+// Import database
+import database from './config/database.js';
+
 // Create Express application
 const app = express();
 
@@ -70,7 +73,7 @@ const authLimiter = rateLimit({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Health check endpoint (no auth required)
+// Health check endpoint (no auth required) - basic service health
 app.get('/health', async (req, res) => {
   try {
     const isHealthy = process.uptime() > 0; // Basic health check
@@ -84,6 +87,32 @@ app.get('/health', async (req, res) => {
     res.status(503).json({
       status: 'unhealthy',
       error: 'Health check failed',
+    });
+  }
+});
+
+// Ready endpoint - checks database connectivity
+app.get('/ready', async (req, res) => {
+  try {
+    const isDatabaseHealthy = await database.healthCheck();
+    const isServiceHealthy = process.uptime() > 0;
+    
+    const isReady = isDatabaseHealthy && isServiceHealthy;
+    
+    res.status(isReady ? 200 : 503).json({
+      status: isReady ? 'ready' : 'not ready',
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development',
+      database: {
+        connected: isDatabaseHealthy,
+        state: database.getConnectionState(),
+      },
+    });
+  } catch (error) {
+    res.status(503).json({
+      status: 'not ready',
+      error: 'Readiness check failed',
     });
   }
 });

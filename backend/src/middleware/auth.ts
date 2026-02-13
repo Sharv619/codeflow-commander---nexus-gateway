@@ -33,11 +33,11 @@ export class AuthMiddleware {
       role: user.role,
     };
 
-    return jwt.sign(payload, this.JWT_SECRET as string, {
+    return jwt.sign(payload, this.JWT_SECRET, {
       expiresIn: this.JWT_EXPIRES_IN,
       issuer: 'codeflow-backend',
       audience: 'codeflow-client',
-    });
+    } as jwt.SignOptions);
   }
 
   /**
@@ -49,11 +49,11 @@ export class AuthMiddleware {
       type: 'refresh',
     };
 
-    return jwt.sign(payload, this.JWT_SECRET as any, {
+    return jwt.sign(payload, this.JWT_SECRET, {
       expiresIn: this.REFRESH_TOKEN_EXPIRES_IN,
       issuer: 'codeflow-backend',
       audience: 'codeflow-client',
-    });
+    } as jwt.SignOptions);
   }
 
   /**

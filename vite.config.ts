@@ -11,9 +11,12 @@ export default defineConfig(({ mode }) => {
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
+          'react': 'https://esm.sh/react@^19.1.1',
+          'react-dom': 'https://esm.sh/react-dom@^19.1.1',
+          'react/jsx-dev-runtime': 'https://esm.sh/react@^19.1.1/jsx-dev-runtime'
         }
-      }
-      ,server: {
+      },
+      server: {
         host: true,
         proxy: {
           '/api': {

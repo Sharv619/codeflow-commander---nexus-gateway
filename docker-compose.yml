@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   # MongoDB Database
   mongo:
@@ -32,23 +31,24 @@ services:
     ports:
       - "5000:5000"
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       PORT: 5000
-      MONGODB_URI: mongodb://admin:password@mongo:27017/codeflow?authSource=admin
+      MONGODB_URI: ${MONGODB_URI:-mongodb://admin:password@mongo:27017/codeflow?authSource=admin}
       JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
-      CORS_ORIGIN: http://localhost:3000
+      CORS_ORIGIN: http://localhost:5173
     depends_on:
       mongo:
         condition: service_healthy
     networks:
       - codeflow-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:5000/ready"]
       interval: 30s
       timeout: 10s
       retries: 3
-    command: ["npm", "start"]
+      start_period: 40s
+    command: ["npm", "run", "dev"]
 
   # React/TypeScript Frontend
   frontend:
@@ -58,20 +58,21 @@ services:
     container_name: codeflow-frontend
     restart: unless-stopped
     ports:
-      - "3000:80"
+      - "5173:5173"
     environment:
-      REACT_APP_API_BASE_URL: http://localhost:5000/api
-      REACT_APP_ENV: production
+      VITE_API_PROXY: http://backend:5000
+      NODE_ENV: development
     depends_on:
       backend:
         condition: service_healthy
     networks:
       - codeflow-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      test: ["CMD", "curl", "-f", "http://localhost:5173"]
       interval: 30s
       timeout: 10s
       retries: 3
+    command: ["npm", "run", "dev"]
 
   # Legacy AI Analysis Server (for existing functionality)
   ai-server:

@@ -1,48 +1,62 @@
 # Codeflow Commander — Nexus Gateway CLI
 
-**The Command-Line Interface for the Autonomous Engineering Platform**
+[![NPM Version](https://img.shields.io/npm/v/codeflow-cli-tool.svg)](https://www.npmjs.com/package/codeflow-cli-tool)
+[![Downloads](https://img.shields.io/npm/dm/codeflow-cli-tool.svg)](https://www.npmjs.com/package/codeflow-cli-tool)
+[![License](https://img.shields.io/npm/l/codeflow-cli-tool.svg)](LICENSE)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/Sharv619/codeflow-commander---nexus-gateway/ci.yml)](https://github.com/Sharv619/codeflow-commander---nexus-gateway/actions)
+[![Coverage](https://img.shields.io/codecov/c/github/Sharv619/codeflow-commander---nexus-gateway)](https://codecov.io/gh/Sharv619/codeflow-commander---nexus-gateway)
+
+**The autonomous engineering CLI for enterprise-scale AI code review and workflow automation**
 
 Your gateway to the Codeflow Commander Nexus Gateway — a comprehensive AI-driven engineering ecosystem that spans the entire software development lifecycle. This CLI tool serves as the entry point to enterprise-wide autonomous engineering capabilities, from intelligent code analysis to organization-scale workflow automation.
 
-This is the universal command-line client for interacting with the **Phase 4 Autonomous Engineering Platform**, featuring next-generation components including the Enterprise Knowledge Graph (EKG), Autonomous Agent Network (AAN), Multi-Modal Interface Layer (MMIL), and Predictive Intelligence Engine (PIE).
+## 🚀 Quick Start (3 Commands)
 
-## 🚀 Key Capabilities
+```bash
+# 1. Install globally
+npm install -g codeflow-cli-tool
 
-### **Enterprise Knowledge Graph (EKG)**
-- **Cross-Repository Intelligence**: Unified knowledge across all organizational repositories
-- **Semantic Dependency Mapping**: Understand organizational code relationships and patterns
-- **Expert Discovery**: Identify domain experts through code analysis patterns
-- **Supply Chain Intelligence**: Vulnerability tracking and license compliance across repositories
+# 2. Configure your AI provider
+codeflow-hook config
 
-### **Autonomous Agent Network (AAN)**
-- **Workflow Automation**: Transform JIRA tickets into validated pull requests automatically
-- **Self-Healing Operations**: Monitor, detect, diagnose, and fix production issues autonomously
-- **Predictive Maintenance**: Scheduled optimization tasks and dependency updates
-- **Multi-Agent Coordination**: Intelligent conflict resolution and approval workflows
+# 3. Install git hooks and start reviewing
+codeflow-hook install
+```
 
-### **Multi-Modal Interface Layer (MMIL)**
-- **Conversational Code Generation**: Natural language → complex refactorings and implementations
-- **Design-to-Code Pipeline**: Figma designs to validated production code
-- **IDE Ecosystem Integration**: Native support across VSCode, IntelliJ, Vim, and more
-- **API-First Architecture**: REST APIs for all platform capabilities
+## 🎯 Why Codeflow Commander?
 
-### **Predictive Intelligence Engine (PIE)**
-- **Tech Debt Forecasting**: Predict maintenance hotspots and cost estimates
-- **Performance Prediction**: Identify regressions before deployment
-- **Engineering Analytics**: Data-driven process optimization and insights
-- **Risk Assessment**: Proactive security and compliance monitoring
+### 🤖 Multi-Modal AI Intelligence
+- **Enterprise Knowledge Graph (EKG)**: Cross-repository intelligence and semantic dependency mapping
+- **Autonomous Agent Network (AAN)**: Self-healing operations and workflow automation
+- **Multi-Modal Interface Layer (MMIL)**: Conversational code generation and design-to-code pipeline
+- **Predictive Intelligence Engine (PIE)**: Tech debt forecasting and performance prediction
 
-### **Governance Safety Framework (GSF)**
-- **Autonomous Permissions**: Dynamic access control based on context and risk
-- **Real-time Compliance**: Continuous regulatory and policy validation
-- **Emergency Controls**: System-wide safety mechanisms and overrides
-- **Human-in-the-Loop**: Graduated approval workflows for different risk levels
+### 🛡️ Enterprise-Grade Security
+- **Real-time Compliance**: GDPR, HIPAA, SOX compliance checking
+- **Security Pattern Detection**: Hardcoded secrets, SQL injection, XSS vulnerabilities
+- **Supply Chain Intelligence**: Vulnerability tracking and license compliance
+- **Governance Safety Framework**: Dynamic access control and emergency controls
 
-### **Distributed Execution Engine (DEE)**
-- **Repository Federation**: Coordinate operations across multiple repositories
-- **Workflow Orchestration**: Complex process execution with dependency management
-- **State Synchronization**: Federated data consistency across the enterprise
-- **Resource Optimization**: Intelligent load balancing and execution management
+### ⚡ Developer Experience
+- **Zero-Configuration**: Works out of the box with intelligent defaults
+- **Multi-Provider Support**: Gemini, OpenAI, Claude, and local Ollama models
+- **RAG-Powered**: Context-aware analysis using your project's knowledge base
+- **Git Integration**: Seamless pre-commit and pre-push hook integration
+
+## 📊 Comparison: Codeflow vs CodeRabbit vs Standard Linters
+
+| Feature | Codeflow Commander | CodeRabbit | Standard Linters |
+|---------|-------------------|------------|------------------|
+| **AI Code Review** | ✅ Multi-modal AI with RAG | ✅ Single AI provider | ❌ No AI |
+| **Multi-Modal Support** | ✅ Gemini, OpenAI, Claude, Ollama | ❌ Limited | ❌ No |
+| **Local AI Support** | ✅ Ollama integration | ❌ Cloud-only | ❌ No |
+| **Enterprise Knowledge Graph** | ✅ Cross-repository intelligence | ❌ Single repo | ❌ No |
+| **Autonomous Agents** | ✅ Self-healing operations | ❌ Manual workflows | ❌ No |
+| **Security Scanning** | ✅ Real-time + compliance | ✅ Basic security | ✅ Basic linting |
+| **Predictive Analytics** | ✅ Tech debt forecasting | ❌ No | ❌ No |
+| **Git Hook Integration** | ✅ Pre-commit + pre-push | ✅ Pre-commit only | ✅ Basic hooks |
+| **RAG Context** | ✅ Project knowledge base | ❌ No context | ❌ No |
+| **Enterprise Scale** | ✅ Multi-repository federation | ❌ Single repository | ❌ Limited |
 
 ## 🏗️ Architecture Overview
 
@@ -112,77 +126,18 @@ The CLI serves as your interface to the Codeflow Commander Nexus Gateway — a d
 └─────────────────────────────────────────────────────────┘
 ```
 
-## 🔄 System Architecture
-
-### Development Workflow
-```mermaid
-graph TD
-    subgraph "Developer Machine"
-        Dev[Developer] -->|git commit| GitHook[CodeFlow-Hook (Pre-Commit)]
-        GitHook -->|1. Read Config| Config[Cascade Config (.codeflowrc)]
-        GitHook -->|2. Scan Regex| Compliance[Compliance Engine]
-        GitHook -->|3. Query Context| VectorDB[(Local Vector Store)]
-        GitHook -->|4. Analyze| AI[AI Provider (Gemini/OpenAI/Claude)]
-    end
-
-    subgraph "Runtime Environment (Server)"
-        App[Your Application] -->|Emit Telemetry| Sentinel[CodeFlow-Sentinel]
-        Sentinel -->|Detect Anomaly| ML[Isolation Forest Model]
-        ML -->|Flag Threat| Agent[Local LLM Agent]
-        Agent -->|Explain| Alert[Security Alert]
-        Sentinel -.->|Freeze Signal| App
-    end
-
-    Compliance --"Violations Found"--> Block[Block Commit]
-    AI --"Code Quality < 7"--> Block
-    ML --"Anomaly Detected"--> Freeze[Circuit Breaker]
-```
-
-### Commit-to-Production Flow
-```mermaid
-sequenceDiagram
-    participant Dev as Developer
-    participant CLI as CodeFlow-Hook
-    participant RAG as Vector Store
-    participant LLM as AI Provider
-    participant Sentry as Sentinel (Runtime)
-
-    Note over Dev, CLI: Development Phase
-    Dev->>CLI: git commit -m "feat: new login"
-    CLI->>CLI: Load Config (Project > Global)
-    CLI->>CLI: Run Compliance Scan (GDPR/HIPAA)
-    alt Violation Detected
-        CLI-->>Dev: 🚨 BLOCK COMMIT (PII Found)
-    else Safe to Proceed
-        CLI->>RAG: Fetch Context (Similar Files)
-        RAG-->>CLI: Return Context
-        CLI->>LLM: Analyze Diff + Context
-        LLM-->>CLI: Review & Rating
-        CLI-->>Dev: ✅ Commit Allowed
-    end
-
-    Note over Sentry, LLM: Runtime Phase
-    Sentry->>Sentry: Monitor Traffic (Latency/Input)
-    Sentry->>Sentry: Update ML Model (IsolationForest)
-    alt Anomaly Detected
-        Sentry->>LLM: "Explain this behavior"
-        LLM-->>Sentry: "Likely Brute Force Attack"
-        Sentry->>Sentry: Trigger Lockdown
-    end
-```
-
 ## 📦 Installation
 
-### Global Installation
+### Global Installation (Recommended)
 
 ```bash
-npm install -g codeflow-hook
+npm install -g codeflow-cli-tool
 ```
 
 ### Local Installation (for specific projects)
 
 ```bash
-npm install --save-dev codeflow-hook
+npm install --save-dev codeflow-cli-tool
 ```
 
 ## ⚙️ Setup
@@ -209,10 +164,29 @@ codeflow-hook config -p claude -k YOUR_CLAUDE_API_KEY
 ```
 *You'll be prompted to select a model: `claude-3-opus-20240229`, `claude-3-sonnet-20240229`, or `claude-3-haiku-20240307`*
 
-**Custom model/URL:**
+**🎯 Local AI Spotlight: Ollama Integration**
+
+For privacy-focused, offline AI analysis:
+
 ```bash
-codeflow-hook config -p openai -k YOUR_API_KEY -m gpt-3.5-turbo -u https://your-custom-endpoint.com
+# Install Ollama (if not already installed)
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Pull a model
+ollama pull llama2
+ollama pull codellama
+ollama pull gemma
+
+# Configure Codeflow to use Ollama
+codeflow-hook config -p ollama -m llama2
 ```
+
+**Benefits of Local AI:**
+- ✅ **Privacy**: No data leaves your machine
+- ✅ **Cost**: No API fees or usage limits
+- ✅ **Offline**: Works without internet connection
+- ✅ **Custom Models**: Use any Ollama-compatible model
+- ✅ **Speed**: No network latency for local processing
 
 ### 2. Install Git Hooks
 
@@ -308,135 +282,87 @@ codeflow-hook index --help      # Index command help
 codeflow-hook analyze-diff --help # Analysis options
 ```
 
-## 🔄 How It Works
+## 🔧 Configuration
 
-### Pre-commit Hook
-- Analyzes staged changes only
-- Provides quick feedback on code quality
-- Prevents problematic commits
+Configuration is stored in `~/.codeflow-hook/config.json`:
 
-### Pre-push Hook
-- Runs full test suite
-- Performs comprehensive AI code review
-- Simulates deployment pipeline
-- Blocks pushes with failing checks
-
-### AI Analysis Features
-- Code quality assessment
-- Security vulnerability detection
-- Performance optimization suggestions
-- Best practice recommendations
-- Maintainability evaluation
-
-## 🔬 Enterprise Technology Stack
-
-### **Multi-Modal AI Integration**
-The Nexus Gateway integrates multiple AI modalities for comprehensive engineering intelligence:
-
-**🤖 Conversational Interface Layer**: Natural language processing for requirement analysis and complex code generation
-**🎨 Design-to-Code Pipeline**: Computer vision and ML models for design artifact ingestion
-**📊 Predictive Analytics Engine**: Time-series analysis and machine learning for trend forecasting
-**🔍 Semantic Code Analysis**: Advanced NLP for code understanding and pattern recognition
-
-### **Autonomous Agent Architecture**
-The core platform intelligence is delivered through specialized agent networks:
-
-**🎯 Workflow Execution Agents**:
-- Ticket-to-PR automation with full engineering lifecycle management
-- Self-healing operations with automated issue detection and remediation
-- Dependency management with intelligent version conflict resolution
-
-**🔬 Observational Intelligence Agents**:
-- Predictive maintenance scheduling based on code analysis patterns
-- Performance regression detection using historical benchmarking
-- Risk assessment with real-time compliance monitoring
-
-**🤝 Collaborative Learning Agents**:
-- Cross-repository knowledge synthesis and pattern mining
-- Expert identification through contribution analysis
-- Team productivity optimization through workflow analysis
-
-### **Federated Data Architecture**
-Enterprise-scale data management across distributed repositories:
-
-**🌐 Enterprise Knowledge Graph (EKG)**:
-- Multi-modal data integration (code, documentation, metrics, design artifacts)
-- Semantic relationship mapping across the entire organization
-- Real-time knowledge updates with conflict-free replication
-
-**📈 Predictive Intelligence Engine (PIE)**:
-- Time-series analytics for development velocity and quality trends
-- Anomaly detection using unsupervised learning algorithms
-- Forecasting models trained on enterprise development data
-
-### **Distributed Execution Framework**
-Coordination of autonomous operations across multiple systems:
-
-**⚡ Distributed Execution Engine (DEE)**:
-- Multi-repository workflow orchestration with dependency management
-- Resource optimization through intelligent load balancing
-- Federated state management with eventual consistency guarantees
-
-**🔐 Governance Safety Framework (GSF)**:
-- Risk-based permission evaluation with dynamic access controls
-- Multi-level audit trails with blockchain-verified immutability
-- Emergency stop mechanisms with graduated escalation protocols
-
-### **Structured Intelligence Output Format**
-Enterprise reporting with actionable insights and automated workflows:
-
-```
-🏢 Enterprise Code Review Summary:
-   🔒 Organization-wide Security risks: 2
-   🏗️ Architecture Optimization opportunities: 7
-   📝 Cross-repository Maintainability issues: 15
-   🎯 Predictive Maintenance alerts: 3
-
-📊 Trend Analysis:
-   📈 Code quality velocity: +12% (improving)
-   📉 Tech debt accumulation: -8% (reducing)
-   🎲 Risk exposure index: LOW (confidence: 94%)
-
-📋 Recommended Actions:
-   🔧 Automated fixes available for 23 issues
-   🚀 Cross-repository refactor suggested for auth module
-   📅 Maintenance window scheduled for Q4 dependency updates
+```json
+{
+  "provider": "gemini",
+  "apiKey": "your-api-key",
+  "apiUrl": "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent",
+  "model": "gemini-pro"
+}
 ```
 
-### **Multi-Repository Analysis Benefits**
-- **Scale**: Analyzes thousands of repositories simultaneously
-- **Intelligence**: Learns organizational patterns and standards
-- **Automation**: Initiates cross-cutting improvements autonomously
-- **Governance**: Ensures compliance across all engineering activities
-- **Prediction**: Forecasts development bottlenecks before they occur
+### Supported AI Providers
 
-## 💡 Usage Examples
+- **Gemini**: `provider: "gemini"` - Default, uses Google AI
+- **OpenAI**: `provider: "openai"` - GPT models
+- **Claude**: `provider: "claude"` - Anthropic models
+- **Ollama**: `provider: "ollama"` - Local AI models
 
-### Standard Development Workflow
+Each provider has optimized prompts and supports custom endpoints.
 
+## 🚨 Troubleshooting
+
+### Common Issues
+
+**"No configuration found"**
 ```bash
-# Stage your changes
-git add .
-
-# Pre-commit hook automatically runs AI analysis
-git commit -m "feat: add new authentication"
-
-# Pre-push hook runs tests and full AI review
-git push origin main
+codeflow-hook config -k YOUR_API_KEY
 ```
 
-### Manual Analysis
-
+**Hooks not running**
 ```bash
-# Analyze uncommitted changes
-git diff | codeflow-hook analyze-diff
-
-# Analyze specific files
-git diff path/to/file.js | codeflow-hook analyze-diff
-
-# Analyze between commits
-git diff HEAD~1 HEAD | codeflow-hook analyze-diff
+codeflow-hook install
+# Ensure scripts are executable
+chmod +x .git/hooks/pre-commit .git/hooks/pre-push
 ```
+
+**API errors**
+- Verify your API key is valid
+- Check AI provider service status
+- Ensure you have quota remaining
+
+**Ollama not working**
+```bash
+# Check if Ollama is running
+ollama list
+
+# Start Ollama service
+ollama serve
+
+# Verify model is available
+ollama pull llama2
+```
+
+**Performance issues**
+```bash
+# Use faster models
+codeflow-hook config -p gemini -m gemini-1.5-flash-latest
+
+# Disable RAG for faster analysis
+git diff | codeflow-hook analyze-diff --no-rag
+```
+
+### System Diagnostics
+
+Run `codeflow-hook doctor` to check:
+- ✅ Node.js version compatibility (>= 18)
+- ✅ Git repository presence
+- ✅ AI provider connectivity
+- ✅ Configuration file security
+- ✅ Network connectivity
+- ✅ Ollama service (if configured)
+
+### Manual Hook Setup
+
+If automatic installation fails:
+
+1. Create `.git/hooks/pre-commit`
+2. Add executable permissions: `chmod +x .git/hooks/pre-commit`
+3. Call the CLI: `npx codeflow-hook analyze-diff "$(git diff --cached)"`
 
 ## 🎯 AI Analysis Output
 
@@ -460,76 +386,30 @@ Example output:
 - Consider extracting common logic to a utility function
 ```
 
-## 🔧 Configuration
-
-Configuration is stored in `~/.codeflow-hook/config.json`:
-
-```json
-{
-  "provider": "gemini",
-  "apiKey": "your-api-key",
-  "apiUrl": "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent",
-  "model": "gemini-pro"
-}
-```
-
-### Supported AI Providers
-
-- **Gemini**: `provider: "gemini"` - Default, uses Google AI
-- **OpenAI**: `provider: "openai"` - GPT models
-- **Claude**: `provider: "claude"` - Anthropic models
-
-Each provider has optimized prompts and supports custom endpoints.
-
-## 📋 Requirements
-
-- Node.js 16+
-- Git repository
-- Gemini API key
-
 ## 🔒 Security
 
 - API keys stored locally (not in your repo)
 - Have to make an .env file for the credentials 
-- No data sent to third parties except Google Gemini
+- No data sent to third parties except configured AI providers
 - Code diffs analyzed locally before sending
+- Enterprise-grade encryption for sensitive data
 
-## 🐛 Troubleshooting
+## 📋 Requirements
 
-### Common Issues
-
-**"No configuration found"**
-```bash
-codeflow-hook config -k YOUR_API_KEY
-```
-
-**Hooks not running**
-```bash
-codeflow-hook install
-# Ensure scripts are executable
-chmod +x .git/hooks/pre-commit .git/hooks/pre-push
-```
-
-**API errors**
-- Verify your API key is valid
-- Check Gemini API service status
-- Ensure you have quota remaining
-
-### Manual Hook Setup
-
-If automatic installation fails:
-
-1. Create `.git/hooks/pre-commit`
-2. Add executable permissions: `chmod +x .git/hooks/pre-commit`
-3. Call the CLI: `npx codeflow-hook analyze-diff "$(git diff --cached)"`
+- Node.js 18+
+- Git repository
+- AI provider API key (or Ollama for local AI)
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests: `npm test`
-5. Submit a pull request
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+
+### Areas for Contribution
+
+- **Security Patterns**: Add new vulnerability detection rules
+- **AI Providers**: Integrate additional AI services
+- **Vector Stores**: Implement new knowledge base backends
+- **Git Hooks**: Enhance pre-commit and pre-push functionality
 
 ## 📄 License
 
@@ -540,7 +420,7 @@ MIT License - see LICENSE file for details
 Built with ❤️ using enterprise-grade technologies:
 
 ### **Core Intelligence Stack**
-- **Multi-Modal AI Integration**: Google Gemini, OpenAI GPT-4, Anthropic Claude
+- **Multi-Modal AI Integration**: Google Gemini, OpenAI GPT-4, Anthropic Claude, Ollama
 - **Distributed Graph Database**: Neo4j Enterprise for Knowledge Graph operations
 - **Federated Learning Infrastructure**: PyTorch and TensorFlow for ML model training
 - **Container Orchestration**: Kubernetes for enterprise-scale deployment
@@ -571,7 +451,9 @@ Join the autonomous engineering revolution with Codeflow Commander Nexus Gateway
 
 **Install today and experience organization-wide autonomous engineering:**
 ```bash
-npm install -g codeflow-hook
+npm install -g codeflow-cli-tool
 ```
 
 **Visit [codeflow-commander-nexus-gateway](https://github.com/Sharv619/codeflow-commander---nexus-gateway) to explore the full platform.**
+
+**Questions?** Join our [Discussions](https://github.com/Sharv619/codeflow-commander---nexus-gateway/discussions) or [Report Issues](https://github.com/Sharv619/codeflow-commander---nexus-gateway/issues)

@@ -43,7 +43,7 @@ class Database {
     };
   }
 
-  public async connect(): Promise<void> {
+  public async connect(retries: number = 5, delay: number = 2000): Promise<void> {
     if (this.isConnected) {
       console.log('MongoDB already connected');
       return;
@@ -78,7 +78,14 @@ class Database {
 
     } catch (error) {
       console.error('❌ Failed to connect to MongoDB:', error);
-      throw error;
+      
+      if (retries > 0) {
+        console.log(`🔄 Retrying connection in ${delay / 1000} seconds... (${retries} retries left)`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return this.connect(retries - 1, delay * 2); // Exponential backoff
+      }
+
+      throw new Error('Failed to connect to MongoDB after multiple attempts');
     }
   }
 
