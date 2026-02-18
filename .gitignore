@@ -127,6 +127,10 @@ secrets/
 credentials.json
 service-account.json
 
+# Fortress
+.fortress.env
+.fortress/
+
 # IDE files
 *.iml
 *.ipr
