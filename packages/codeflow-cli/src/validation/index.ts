@@ -96,7 +96,7 @@ export class ValidationPipeline {
 
         results.push(errorResult);
         overallPassed = false;
-        messages.push(errorResult.message);
+        messages.push(errorResult.message || 'Validation failed');
         if(errorResult.details) {
             details.push(...errorResult.details);
         }

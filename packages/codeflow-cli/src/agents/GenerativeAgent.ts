@@ -9,11 +9,12 @@ import { StorageManager } from '../storage';
 import { RAGService } from '../services/rag';
 import { PRISMService } from '../services/prism';
 import { PatchEngine } from '../services/patch-engine';
+import { createHash } from 'crypto';
 import {
   CodeSuggestion,
   DeveloperFeedback,
   CodeEntity,
-  ArchitecturePattern,
+  ArchitecturePattern
 } from '../types/entities';
 import { ConfidenceScore, ValidationResult } from '../types/core';
 import { AgentContext, GenerationRequest, GenerationResult, AgentCapabilities, GenerationStrategy, LearningData } from '../types/generative-agent-types';
@@ -470,7 +471,6 @@ export abstract class GenerativeAgent {
       constraints: request.requirements.constraints
     });
 
-import { createHash } from 'crypto';
     return createHash('md5').update(contextString).digest('hex');
   }
 

@@ -177,3 +177,10 @@ docs/archive/PHASE4_COMPONENT_EVOLUTION.md
 docs/archive/PHASE4_DATA_FLOW_INTEGRATION.md
 docs/archive/PHASE4_DATA_MODELS.md
 .gitignore
+
+# Digital Fortress - Local data (encrypted)
+.fortress/
+!.fortress/.gitkeep
+
+# Fortress environment
+.fortress.env

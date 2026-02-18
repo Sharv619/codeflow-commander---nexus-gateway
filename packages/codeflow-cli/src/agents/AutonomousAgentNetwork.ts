@@ -3,7 +3,7 @@
 // Enables ticket-to-PR automation, self-healing, and proactive workflows
 
 import { Logger, defaultLogger } from '@/utils/logger';
-import { ErrorHandler, ValidationPipeline, SafetyGovernor } from '@/validation';
+import { ErrorHandler } from '@/validation';
 import { ConfidenceScore } from '@/types/core';
 import {
   CodeSuggestion,

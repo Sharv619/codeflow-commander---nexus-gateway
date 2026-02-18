@@ -96,7 +96,8 @@ export class CodeflowCLI {
       await this.performStartupChecks();
 
     } catch (error) {
-      this.logger.error('CLI execution failed', { error: error.message });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('CLI execution failed', { error: errorMessage });
       this.displayError(error);
       process.exit(1);
     }
@@ -668,6 +669,7 @@ export class CodeflowCLI {
 
   private createLogger(): Logger {
     return {
+      level: 'info',
       debug: (message: string, data?: any) => {
         if (this.context.verbose) console.log(`🐛 ${message}`, data || '');
       },
@@ -678,7 +680,10 @@ export class CodeflowCLI {
         console.warn(`⚠️  ${message}`, data || '');
       },
       error: (message: string, data?: any) => {
-        console.error(`❌ ${message}`, error || '');
+        console.error(`❌ ${message}`, data || '');
+      },
+      emergency: (message: string, data?: any) => {
+        console.error(`🚨 EMERGENCY: ${message}`, data || '');
       }
     };
   }
@@ -699,7 +704,7 @@ export class CodeflowCLI {
   private async performStartupChecks(): Promise<void> {
     // Check project initialization
     const projectState = this.stateManager.getProjectState(this.context.projectPath);
-    if (!projectState.initialized) {
+    if (!projectState || !projectState.lastUpdated) {
       this.logger.info('Initializing project for Codeflow...');
       // Initialize project with PRISM analysis
       await this.prismService.analyzeProject();

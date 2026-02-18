@@ -1,76 +1,121 @@
 version: '3.8'
-services:
-  frontend:
-    build:
-      context: ./packages/simulator-ui
-      dockerfile: Dockerfile.frontend
-    image: nexus-gateway-frontend:latest
-    ports:
-      - "8080:80"
-    environment:
-      - VITE_API_PROXY=http://backend:3001
-    depends_on:
-      - backend
-    restart: unless-stopped
 
+services:
+  # Python Backend Service
   backend:
     build:
-      context: ./server
-      dockerfile: Dockerfile
-    image: nexus-gateway-backend:latest
+      context: .
+      dockerfile: Dockerfile.python
     ports:
       - "3001:3001"
     environment:
-      - NODE_ENV=production
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - GEMINI_API_URL=${GEMINI_API_URL}
-    restart: unless-stopped
-
-  query-service:
-    build:
-      context: ./packages/services/query-service
-      dockerfile: Dockerfile
-    image: nexus-gateway-query-service:latest
-    environment:
-      - NODE_ENV=production
-      - PORT=4000
-      - NEPTUNE_ENDPOINT=${NEPTUNE_ENDPOINT:-neptune:8182}
-      - NEPTUNE_PORT=8182
-    ports:
-      - "4000:4000"
-    depends_on:
-      - neptune
-    restart: unless-stopped
-
-  neptune:
-    image: amazon/neptune:latest
-    ports:
-      - "8182:8182"
-    environment:
-      - NEPTUNE_DB_CLUSTER_ID=codeflow-neptune
+      - ENVIRONMENT=production
+      - LOG_LEVEL=info
     volumes:
-      - neptune_data:/var/lib/neptune
+      - ./results:/app/results
+      - ./pipeline-results:/app/pipeline-results
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - app-network
 
-  # Development override service
-  frontend-dev:
+  # React Frontend Service
+  frontend:
     build:
-      context: ./packages/simulator-ui
+      context: .
       dockerfile: Dockerfile.frontend
-    image: nexus-gateway-frontend-dev:latest
     ports:
-      - "5173:5173"
+      - "80:80"
     environment:
-      - VITE_API_PROXY=http://backend:3001
-      - NODE_ENV=development
+      - REACT_APP_API_URL=http://localhost:3001
+    restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - app-network
+
+  # Nginx Reverse Proxy (Optional - for production SSL)
+  nginx-proxy:
+    image: nginx:alpine
+    ports:
+      - "443:443"
     volumes:
-      - ./packages/simulator-ui:/app
-      - /app/node_modules
-    command: npm run dev
-    profiles:
-      - development
+      - ./nginx/proxy.conf:/etc/nginx/conf.d/default.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+    restart: unless-stopped
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - app-network
+
+  # Redis for caching (Optional enhancement)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  # PostgreSQL for persistent storage (Optional enhancement)
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: codeflow
+      POSTGRES_USER: codeflow
+      POSTGRES_PASSWORD: codeflow123
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  # Monitoring with Prometheus (Optional)
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  # Grafana for visualization (Optional)
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+    restart: unless-stopped
+    networks:
+      - app-network
 
 volumes:
-  neptune_data:
+  redis-data:
+  postgres-data:
+  grafana-data:
+
+networks:
+  app-network:
+    driver: bridge

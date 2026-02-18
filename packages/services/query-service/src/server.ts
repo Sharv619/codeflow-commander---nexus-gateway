@@ -29,7 +29,7 @@ const typeDefs = fs.readFileSync(schemaPath, 'utf8');
  */
 class EKGQueryService {
   private app: express.Express;
-  private server: ApolloServer;
+  private server!: ApolloServer;
   private neptuneClient: NeptuneClient;
   private port: number;
 
@@ -125,13 +125,16 @@ class EKGQueryService {
         context: ({ req }): GraphQLContext => {
           // Extract user ID from headers (would be set by auth middleware in production)
           const userId = req.headers['x-user-id'] as string | undefined;
-          const requestId = req.headers['x-request-id'] as string || `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          const requestId = req.headers['x-request-id'] as string | undefined;
 
-          return {
-            neptune: this.neptuneClient,
-            userId: userId || undefined,
-            requestId
+          const context: GraphQLContext = {
+            neptune: this.neptuneClient
           };
+          
+          if (userId) context.userId = userId;
+          if (requestId) context.requestId = requestId;
+          
+          return context;
         },
         // Validation rules for production safety
         validationRules: [
@@ -199,7 +202,7 @@ class EKGQueryService {
   private setupRoutes(): void {
 
     // Health check endpoint
-    this.app.get('/health', (req: express.Request, res: express.Response) => {
+    this.app.get('/health', (_req: express.Request, res: express.Response) => {
       res.json({
         status: 'healthy',
         timestamp: new Date().toISOString(),
@@ -209,7 +212,7 @@ class EKGQueryService {
     });
 
     // Ready check endpoint with database connectivity check
-    this.app.get('/ready', async (req: express.Request, res: express.Response) => {
+    this.app.get('/ready', async (_req: express.Request, res: express.Response) => {
       try {
         const isHealthy = await this.neptuneClient.healthCheck();
 
@@ -239,7 +242,7 @@ class EKGQueryService {
     });
 
     // Metrics endpoint for monitoring
-    this.app.get('/metrics', async (req: express.Request, res: express.Response) => {
+    this.app.get('/metrics', async (_req: express.Request, res: express.Response) => {
       try {
         const stats = await this.neptuneClient.getStatistics();
         const nodeMetrics = process.memoryUsage();

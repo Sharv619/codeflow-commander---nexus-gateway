@@ -24,7 +24,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install all dependencies (including dev dependencies for building)
-RUN npm ci --only=production
+RUN npm install
 
 # Copy source code
 COPY src/ ./src/
@@ -50,7 +50,7 @@ WORKDIR /app
 
 # Copy built application from builder stage
 COPY --from=builder --chown=ekg:nodejs /app/dist ./dist/
-COPY --from=builder --chown=ekg:nodejs /app/src/schemas ./src/schemas/
+COPY --from=builder --chown=ekg:nodejs /app/src/schemas ./dist/schemas/
 COPY --from=builder --chown=ekg:nodejs /app/node_modules ./node_modules/
 COPY --from=builder --chown=ekg:nodejs /app/package*.json ./
 

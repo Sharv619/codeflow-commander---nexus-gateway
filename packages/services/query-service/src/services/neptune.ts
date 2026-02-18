@@ -8,8 +8,9 @@ import gremlin from 'gremlin';
  */
 export class NeptuneClient {
   private client: gremlin.driver.Client | null = null;
-  private driverRemoteConnection: any = null;
-  private g: gremlin.process.GraphTraversalSource | null = null;
+  // Reserved for future use with driver-level connections
+  // private driverRemoteConnection: any = null;
+  // private g: gremlin.process.GraphTraversalSource | null = null;
 
   private neptuneEndpoint: string;
   private neptunePort: number;
@@ -66,8 +67,6 @@ export class NeptuneClient {
       console.error('Error disconnecting from Neptune:', error);
     } finally {
       this.client = null;
-      this.g = null;
-      this.driverRemoteConnection = null;
     }
   }
 
@@ -176,7 +175,7 @@ export class NeptuneClient {
   /**
    * Find a vertex by id
    */
-  async findVertex(label: string, id: string | number): Promise<any> {
+  async findVertex(_label: string, id: string | number): Promise<any> {
     if (!this.client) {
       throw new Error('Not connected to Neptune');
     }
@@ -195,7 +194,7 @@ export class NeptuneClient {
   /**
    * Update vertex properties
    */
-  async updateVertex(label: string, id: string | number, properties: Record<string, any>): Promise<void> {
+  async updateVertex(_label: string, id: string | number, properties: Record<string, any>): Promise<void> {
     if (!this.client) {
       throw new Error('Not connected to Neptune');
     }
@@ -224,7 +223,7 @@ export class NeptuneClient {
   /**
    * Delete a vertex and all its connected edges
    */
-  async deleteVertex(label: string, id: string | number): Promise<void> {
+  async deleteVertex(_label: string, id: string | number): Promise<void> {
     if (!this.client) {
       throw new Error('Not connected to Neptune');
     }
@@ -300,7 +299,7 @@ export class NeptuneClient {
   /**
    * Find similar repositories based on patterns
    */
-  async findSimilarRepositories(patterns: string[]): Promise<any[]> {
+  async findSimilarRepositories(_patterns: string[]): Promise<any[]> {
     // This would be a more complex query matching pattern similarities
     const query = `
       g.V().hasLabel('repository')

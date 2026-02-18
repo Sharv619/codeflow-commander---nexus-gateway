@@ -274,7 +274,8 @@ export class PatchEngine {
             errors.push(`Backup file missing: ${filePath}`);
           }
         } catch (error) {
-          errors.push(`Failed to restore ${filePath}: ${error.message}`);
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          errors.push(`Failed to restore ${filePath}: ${errorMessage}`);
         }
       }
 
@@ -373,7 +374,7 @@ export class PatchEngine {
     // 4. Syntax and logic validation
     const syntaxCheck = await this.validatePatchSyntax(patchData);
     if (!syntaxCheck.passed) {
-      validation.errors.push(...syntaxCheck.details.filter(d => d.includes('error') || d.includes('Error')));
+      validation.errors.push(...(syntaxCheck.details || []).filter((d: string) => d.includes('error') || d.includes('Error')));
       validation.passed = false;
     }
 
@@ -506,6 +507,17 @@ ${suggestion.patch.content}`;
     return { passed: true, score: 0.9, message: 'Syntax validation passed' };
   }
 
+  async validatePatchForApplication(
+    patchData: any,
+    _validationLevel: string
+  ): Promise<ValidationResult> {
+    const syntaxCheck = await this.validatePatchSyntax(patchData);
+    if (!syntaxCheck.passed) {
+      return { passed: false, score: syntaxCheck.score ?? 0, message: syntaxCheck.message };
+    }
+    return { passed: true, score: 0.9, message: 'Patch validation passed' };
+  }
+
   private async validateFilePermissions(files: string[], projectPath: string, privileges: string): Promise<string[]> {
     return []; // Would check file permissions
   }
@@ -627,7 +639,8 @@ export class PatchCoordinator {
 
       } catch (error) {
         failed++;
-        this.logger.error('Failed to apply patch in coordinated mode', { patchId, error: error.message });
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.logger.error('Failed to apply patch in coordinated mode', { patchId, error: errorMessage });
 
         if (!options.continueOnError) break;
       }
@@ -668,19 +681,3 @@ export class PatchCoordinator {
     return order;
   }
 }
-
-/**
- * Export interfaces and classes
- */
-export type {
-  PatchResult,
-  RollbackResult,
-  ConflictDetail,
-  PatchValidation,
-  SecurityIssue,
-  BackupInfo
-};
-
-export {
-  PatchCoordinator
-};

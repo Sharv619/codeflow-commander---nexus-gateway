@@ -1,45 +1,8 @@
 import { gql } from '@apollo/client';
 
-// Agent Recommendation Subscription
-export const AGENT_RECOMMENDATION_SUBSCRIPTION = gql`
-  subscription OnAgentRecommendation {
-    agentRecommendation {
-      id
-      title
-      description
-      agentType
-      severity
-      confidence
-      status
-      createdAt
-      repository {
-        id
-        name
-      }
-      codePatch {
-        file
-        originalCode
-        suggestedCode
-        lineNumber
-      }
-      reasoning
-      validationResults {
-        testsPass
-        securityScanPass
-        performanceImpact
-      }
-      metadata {
-        analysisTime
-        filesAffected
-        complexity
-      }
-    }
-  }
-`;
-
 // Agent Status Update Subscription
 export const AGENT_STATUS_UPDATE_SUBSCRIPTION = gql`
-  subscription OnAgentStatusUpdate {
+  subscription AgentStatusUpdate {
     agentStatusUpdate {
       id
       name
@@ -53,7 +16,6 @@ export const AGENT_STATUS_UPDATE_SUBSCRIPTION = gql`
         enabled
         confidenceThreshold
         rateLimit
-        scope
       }
     }
   }
@@ -61,40 +23,24 @@ export const AGENT_STATUS_UPDATE_SUBSCRIPTION = gql`
 
 // Repository Health Update Subscription
 export const REPOSITORY_HEALTH_UPDATE_SUBSCRIPTION = gql`
-  subscription OnRepositoryHealthUpdate($repositoryId: ID!) {
+  subscription RepositoryHealthUpdate($repositoryId: ID!) {
     repositoryHealthUpdate(repositoryId: $repositoryId) {
-      id
-      name
+      repositoryId
       health {
         techDebtScore
         testCoverage
         securityPosture
         vulnerabilityCount
+        codeComplexity
       }
-      agentActivity {
-        suggestionsCount
-        acceptedSuggestions
-        pendingReviews
-      }
-      dependencies {
-        name
-        version
-        vulnerabilities
-        outdated
-      }
-      metadata {
-        lastAnalyzed
-        totalCommits
-        activeBranches
-        contributors
-      }
+      lastUpdated
     }
   }
 `;
 
 // Graph Statistics Update Subscription
 export const GRAPH_STATISTICS_UPDATE_SUBSCRIPTION = gql`
-  subscription OnGraphStatisticsUpdate {
+  subscription GraphStatisticsUpdate {
     graphStatisticsUpdate {
       nodeCount
       edgeCount
@@ -109,42 +55,30 @@ export const GRAPH_STATISTICS_UPDATE_SUBSCRIPTION = gql`
           securityPosture
           vulnerabilityCount
         }
-        agentActivity {
-          suggestionsCount
-          acceptedSuggestions
-          pendingReviews
-        }
-        dependencies {
-          name
-          version
-          vulnerabilities
-          outdated
-        }
-        metadata {
-          lastAnalyzed
-          totalCommits
-          activeBranches
-          contributors
-        }
       }
-      nodes {
-        id
-        label
-        type
-        data {
-          team
-          language
-          version
-          health
-          vulnerabilities
-        }
-      }
-      edges {
-        id
-        source
-        target
-        type
-        weight
+    }
+  }
+`;
+
+// Agent Recommendation Subscription
+export const AGENT_RECOMMENDATION_SUBSCRIPTION = gql`
+  subscription AgentRecommendation {
+    agentRecommendation {
+      id
+      repositoryId
+      agentType
+      title
+      description
+      severity
+      confidence
+      status
+      createdAt
+      reasoning
+      codePatch {
+        file
+        originalCode
+        suggestedCode
+        lineNumber
       }
     }
   }
@@ -152,58 +86,28 @@ export const GRAPH_STATISTICS_UPDATE_SUBSCRIPTION = gql`
 
 // Pipeline Simulation Update Subscription
 export const PIPELINE_SIMULATION_UPDATE_SUBSCRIPTION = gql`
-  subscription OnPipelineSimulationUpdate($simulationId: ID!) {
-    pipelineSimulationUpdate(simulationId: $simulationId) {
-      id
+  subscription PipelineSimulationUpdate($executionId: ID!) {
+    pipelineSimulationUpdate(executionId: $executionId) {
+      executionId
+      stageId
       status
-      pipelineConfig
-      results {
-        stage
-        status
-        duration
-        output
-        errors
-      }
-      metrics {
-        totalDuration
-        successRate
-        resourceUsage
-        costEstimate
-      }
-      createdAt
-      completedAt
-      updatedAt
+      progress
+      logs
+      error
+      duration
     }
   }
 `;
 
 // System Health Subscription
 export const SYSTEM_HEALTH_SUBSCRIPTION = gql`
-  subscription OnSystemHealthUpdate {
-    systemHealthUpdate {
-      timestamp
-      status
-      services {
-        name
-        status
-        responseTime
-        lastChecked
-        errorMessage
-      }
-      metrics {
-        activeUsers
-        totalRepositories
-        activeAgents
-        pendingAnalyses
-        systemLoad
-      }
-      alerts {
-        id
-        level
-        message
-        timestamp
-        resolved
-      }
+  subscription SystemHealth {
+    systemHealth {
+      backendStatus
+      frontendStatus
+      databaseStatus
+      lastCheck
+      issues
     }
   }
 `;

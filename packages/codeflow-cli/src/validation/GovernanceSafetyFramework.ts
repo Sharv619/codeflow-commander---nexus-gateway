@@ -602,13 +602,13 @@ export class GovernanceSafetyFramework {
   }
 
   private determineOverallStatus(evaluations: PolicyEvaluation[]): ApprovalStatus {
-    if (evaluations.some(eval => eval.status === ApprovalStatus.DENIED)) {
+    if (evaluations.some(e => e.status === ApprovalStatus.DENIED)) {
       return ApprovalStatus.DENIED;
     }
-    if (evaluations.some(eval => eval.status === ApprovalStatus.ESCALATED)) {
+    if (evaluations.some(e => e.status === ApprovalStatus.ESCALATED)) {
       return ApprovalStatus.ESCALATED;
     }
-    if (evaluations.every(eval => eval.status === ApprovalStatus.APPROVED)) {
+    if (evaluations.every(e => e.status === ApprovalStatus.APPROVED)) {
       return ApprovalStatus.APPROVED;
     }
     return ApprovalStatus.PENDING;
@@ -621,8 +621,8 @@ export class GovernanceSafetyFramework {
       recommendations.push('Manual review recommended for high-risk operation');
     }
 
-    evaluations.filter(eval => !eval.satisfied).forEach(eval => {
-      recommendations.push(`Policy violation: ${eval.policyName}`);
+    evaluations.filter(e => !e.satisfied).forEach(e => {
+      recommendations.push(`Policy violation: ${e.policyName}`);
     });
 
     return recommendations;

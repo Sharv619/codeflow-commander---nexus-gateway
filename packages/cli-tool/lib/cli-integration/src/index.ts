@@ -731,6 +731,16 @@ export class CLIIntegrationService {
    * Validate URL to prevent SSRF attacks
    */
   private isValidUrl(url: string): boolean {
+    // Allow localhost for local development
+    if (process.env.ALLOW_LOCALHOST === 'true') {
+      try {
+        const urlObj = new URL(url);
+        return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
+      } catch {
+        return false;
+      }
+    }
+
     try {
       const urlObj = new URL(url);
       

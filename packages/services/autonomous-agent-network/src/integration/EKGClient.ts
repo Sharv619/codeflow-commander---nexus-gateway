@@ -3,7 +3,7 @@
 // Provides access to Phase 4 Enterprise Knowledge Graph for agent intelligence
 // ------------------------------------------------------------------------------
 export class EKGClient {
-  async getRepositoryIntelligence(repositoryId: string): Promise<any> {
+  async getRepositoryIntelligence(_repositoryId: string): Promise<any> {
     // Would integrate with Phase 4 Query Service
     // For now, return mock intelligence
     return {
@@ -16,7 +16,7 @@ export class EKGClient {
     };
   }
 
-  async getRelevantPatterns(repositoryId: string, agentType: string): Promise<any[]> {
+  async getRelevantPatterns(_repositoryId: string, _agentType: string): Promise<any[]> {
     // Would query EKG for organizational patterns
     return [
       { id: 'pattern-1', name: 'Secure Auth', confidence: 0.9 },
@@ -24,7 +24,7 @@ export class EKGClient {
     ];
   }
 
-  async getRecentActivity(repositoryId: string): Promise<any[]> {
+  async getRecentActivity(_repositoryId: string): Promise<any[]> {
     // Would get recent PRs, commits, etc.
     return [
       { type: 'commit', message: 'Add security validation', timestamp: new Date() }

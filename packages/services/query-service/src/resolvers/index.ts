@@ -5,7 +5,7 @@ import { GraphQLError } from 'graphql';
 export interface GraphQLContext {
   neptune: NeptuneClient;
   userId?: string;
-  requestId: string;
+  requestId?: string;
 }
 
 // Repository Intelligence Resolver
@@ -85,7 +85,7 @@ export const similarRepositoriesResolver = async (
 // Repositories Resolver
 export const repositoriesResolver = async (
   _: any,
-  { limit, offset, language, minSize, maxSize }: {
+  { limit, offset }: {
     limit: number;
     offset: number;
     language?: string;
@@ -269,7 +269,7 @@ export const resolvers = {
     repositoryDependencies: repositoryDependenciesResolver,
     repositoryPatterns: repositoryPatternsResolver,
     // These would need implementation for full functionality:
-    searchRepositories: (_: any, args: any) => { throw new GraphQLError('Not implemented', { extensions: { code: 'NOT_IMPLEMENTED' } }); },
-    patterns: (_: any, args: any) => { throw new GraphQLError('Not implemented', { extensions: { code: 'NOT_IMPLEMENTED' } }); }
+    searchRepositories: () => { throw new GraphQLError('Not implemented', { extensions: { code: 'NOT_IMPLEMENTED' } }); },
+    patterns: () => { throw new GraphQLError('Not implemented', { extensions: { code: 'NOT_IMPLEMENTED' } }); }
   }
 };

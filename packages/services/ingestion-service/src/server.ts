@@ -238,9 +238,13 @@ class EKGMicroservice {
    */
   async start(): Promise<void> {
     try {
-      // Initialize connections
-      await this.neptuneClient.connect();
-      console.log('Connected to Neptune database');
+      // Initialize connections (skip if SKIP_NEPTUNE is set)
+      if (process.env.SKIP_NEPTUNE !== 'true') {
+        await this.neptuneClient.connect();
+        console.log('Connected to Neptune database');
+      } else {
+        console.log('Skipping Neptune connection (smoke test mode)');
+      }
 
       // Start HTTP server
       this.app.listen(this.port, () => {

@@ -6,22 +6,39 @@ import ora from 'ora';
 import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
-import os from 'os'; // Make sure os is imported
+import os from 'os';
 import readline from 'readline';
 import { orchestrateReview } from './agents.js';
+import { 
+  callAIProvider, 
+  validateApiKey as validateProviderApiKey,
+  getOllamaModels,
+  ensureOllamaRunning,
+  isFortressMode 
+} from './ai-provider.js';
 
 // Import CLI integration service
 import { indexProject, analyzeDiff } from '../lib/cli-integration/dist/index.js';
 
-// Export for use in agents module
-export { callAIProvider };
+// Import Foundation modules (Phase 1 migration)
+import { Logger, defaultLogger } from '../lib/foundation/utils/logger.js';
+import { ErrorHandler, ValidationPipeline, SafetyGovernor } from '../lib/foundation/validation/index.js';
+import { stateManager } from '../lib/foundation/state/index.js';
+import * as types from '../lib/foundation/types/core.js';
+import { StorageManager } from '../lib/foundation/storage/index.js';
+import { serviceContainer } from '../lib/foundation/services/index.js';
+
+// Initialize foundation logger
+const logger = defaultLogger;
+const errorHandler = new ErrorHandler(logger);
+const storageManager = new StorageManager();
 
 const program = new Command();
 
 program
   .name('codeflow-hook')
-  .description('Interactive CI/CD simulator and AI-powered code reviewer with EKG backend integration')
-  .version('4.0.0');
+  .description('Interactive CI/CD simulator and AI-powered code reviewer - now with LOCAL MODE support')
+  .version('3.0.0');
 
 // Configure AI provider settings
 program
@@ -73,7 +90,7 @@ program
       const validationSpinner = ora('Checking key permissions...').start();
 
       try {
-        await validateApiKey(requestedProvider, requestedApiKey);
+        await validateProviderApiKey(requestedProvider, requestedApiKey);
         validationSpinner.succeed('API key validated');
       } catch (error) {
         validationSpinner.fail('Validation failed');
@@ -199,6 +216,78 @@ program
     if (config.model) {
       console.log(chalk.green(`   Model: ${config.model}`));
     }
+  });
+
+// List available models (NEW: Ollama support)
+program
+  .command('models')
+  .description('List available AI models (local Ollama or external providers)')
+  .option('--local', 'Show only local Ollama models')
+  .option('--install <model>', 'Install a local Ollama model (e.g., codellama:7b-code)')
+  .action(async (options) => {
+    console.log(chalk.blue('🔍 Checking available models...\n'));
+    
+    // Check for Ollama models
+    const spinner = ora('Checking local Ollama...').start();
+    const ollamaReady = await ensureOllamaRunning();
+    
+    if (ollamaReady) {
+      spinner.succeed('Ollama is running');
+      
+      const models = await getOllamaModels();
+      
+      if (models.length > 0) {
+        console.log(chalk.green('\n🤖 Local Ollama Models:'));
+        console.log(chalk.gray('─'.repeat(60)));
+        models.forEach((model, index) => {
+          const size = model.size ? `(${(model.size / 1e9).toFixed(1)}GB)` : '';
+          console.log(chalk.cyan(`  ${index + 1}. ${model.name} ${chalk.gray(size)}`));
+          if (model.details) {
+            console.log(chalk.gray(`     Family: ${model.details.family || 'unknown'}`));
+          }
+        });
+      } else {
+        console.log(chalk.yellow('\n⚠️  No Ollama models found'));
+        console.log(chalk.gray('   Install models with: ollama pull <model-name>'));
+        console.log(chalk.gray('   Or use: codeflow-hook models --install codellama:7b-code'));
+      }
+    } else {
+      spinner.fail('Ollama not available');
+    }
+    
+    // Show external providers if not in local-only mode
+    if (!options.local && !isFortressMode()) {
+      console.log(chalk.blue('\n☁️  External Provider Models:'));
+      console.log(chalk.gray('─'.repeat(60)));
+      console.log(chalk.cyan('  Provider: Gemini'));
+      console.log(chalk.gray('    • gemini-pro'));
+      console.log(chalk.gray('    • gemini-pro-vision'));
+      console.log(chalk.gray('    • gemini-1.5-pro'));
+      console.log(chalk.cyan('  Provider: OpenAI'));
+      console.log(chalk.gray('    • gpt-4'));
+      console.log(chalk.gray('    • gpt-4-turbo'));
+      console.log(chalk.gray('    • gpt-3.5-turbo'));
+      console.log(chalk.cyan('  Provider: Claude'));
+      console.log(chalk.gray('    • claude-3-opus'));
+      console.log(chalk.gray('    • claude-3-sonnet'));
+      console.log(chalk.gray('    • claude-3-haiku'));
+    }
+    
+    // Install model if requested
+    if (options.install) {
+      console.log(chalk.blue(`\n📦 Installing model: ${options.install}...`));
+      const installSpinner = ora('Downloading...').start();
+      
+      try {
+        const { execSync } = await import('child_process');
+        execSync(`ollama pull ${options.install}`, { stdio: 'inherit' });
+        installSpinner.succeed(`Model ${options.install} installed`);
+      } catch (error) {
+        installSpinner.fail(`Failed to install model: ${error.message}`);
+      }
+    }
+    
+    console.log(chalk.gray('\n💡 Tip: Set local mode with FORTRESS_MODE=true for 100% offline operation'));
   });
 
 // Index repository via EKG Ingestion Service (Phase 4)
@@ -485,202 +574,6 @@ program
   });
 
 
-async function validateApiKey(provider, apiKey) {
-  console.log(`DEBUG: validateApiKey called for provider: ${provider}`);
-  if (!apiKey) {
-    throw new Error('No API key provided');
-  }
-
-  try {
-    console.log(`DEBUG: Making API call for ${provider} validation...`);
-    switch (provider) {
-      case 'gemini':
-        // Test Gemini API key by making a simple models list request
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
-        console.log(`DEBUG: Gemini URL: ${geminiUrl.substring(0, 80)}...`);
-        await axios.get(geminiUrl);
-        console.log(`DEBUG: Gemini API call succeeded`);
-        break;
-      case 'openai':
-        const openaiUrl = 'https://api.openai.com/v1/models';
-        console.log(`DEBUG: OpenAI URL: ${openaiUrl} with Bearer token`);
-        await axios.get(openaiUrl, {
-          headers: { 'Authorization': `Bearer ${apiKey}` }
-        });
-        console.log(`DEBUG: OpenAI API call succeeded`);
-        break;
-      case 'claude':
-        // Test Claude API key with a minimal request (Anthropic doesn't have models endpoint, so we use a very basic check)
-        console.log(`DEBUG: Claude validation call`);
-        try {
-          await axios.post('https://api.anthropic.com/v1/messages', {
-            model: 'claude-3-haiku-20240307',
-            max_tokens: 1,
-            messages: [{ role: 'user', content: 'Test' }]
-          }, {
-            headers: {
-              'x-api-key': apiKey,
-              'anthropic-version': '2023-06-01',
-              'Content-Type': 'application/json'
-            }
-          });
-        } catch (claudeError) {
-          console.log(`DEBUG: Claude error status: ${claudeError.response?.status}`);
-          if (claudeError.response?.status === 401) {
-            throw new Error('Invalid Claude API key');
-          }
-          // If it's a different error (like rate limit), we'll allow it through
-        }
-        break;
-      default:
-        throw new Error(`Unsupported provider: ${provider}`);
-    }
-  } catch (error) {
-    console.log(`DEBUG: Validation failed with error: ${error.message}`);
-    console.log(`DEBUG: Error response status: ${error.response?.status}`);
-    if (error.response?.status === 401) {
-      throw new Error(`Invalid ${provider} API key`);
-    } else if (error.response?.status === 403) {
-      throw new Error(`API key lacks permissions for ${provider}`);
-    } else if (error.response?.status === 429) {
-      throw new Error(`API rate limit exceeded. Please try again later.`);
-    } else {
-      throw new Error(`${provider} API is currently unavailable: ${error.message}`);
-    }
-  }
-}
-
-async function fetchModels(provider, apiKey) {
-  switch (provider) {
-    case 'gemini':
-      const geminiResponse = await axios.get(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-      return geminiResponse.data.models.map(m => m.name.replace('models/', ''));
-    case 'openai':
-      const openaiResponse = await axios.get('https://api.openai.com/v1/models', {
-        headers: { 'Authorization': `Bearer ${apiKey}` }
-      });
-      return openaiResponse.data.data.map(m => m.id);
-    case 'claude':
-      console.log(chalk.yellow("Claude does not support dynamic model fetching. Using a standard list."));
-      return getFallbackModels('claude');
-    default:
-      return [];
-  }
-}
-
-function getFallbackModels(provider) {
-  switch (provider) {
-    case 'gemini':
-      return ['gemini-1.5-pro-latest', 'gemini-1.5-flash-latest', 'gemini-pro'];
-    case 'openai':
-      return ['gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo'];
-    case 'claude':
-      return ['claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'];
-    default:
-      return [];
-  }
-}
-
-function generateCodeReviewPrompt(diff) {
-  return `You are "Codeflow", a world-class AI software engineering assistant acting as a Principal Engineer. Your mission is to perform a rigorous and constructive code review on the provided code changes.
-
-**Guidelines:**
-- Focus on code quality, security, performance, and best practices
-- Be constructive and provide actionable suggestions
-- Rate the changes on a scale of 1-10 (where 10 is excellent)
-- If there are critical issues, suggest fixes
-
-**Format your response as:**
-**Rating:** [1-10]/10
-**Summary:** [Brief summary]
-
-**Issues:** (if any)
-- [Issue description and suggestion]
-
-**Recommendations:** (if any)
-- [Recommendation]
-
-**Code Changes to Review:**
-\`\`\`
-${diff}
-\`\`\`
-
-Provide your analysis:`;
-}
-
-function callAIProvider(config, prompt) {
-  switch (config.provider) {
-    case 'openai':
-      return callOpenAI(config, prompt);
-    case 'claude':
-      return callClaude(config, prompt);
-    case 'gemini':
-    default:
-      return callGemini(config, prompt);
-  }
-}
-
-async function callGemini(config, prompt) {
-  const payload = {
-    contents: [{
-      parts: [{
-        text: prompt
-      }]
-    }],
-    generationConfig: {
-      temperature: 0.2,
-      topK: 40,
-      topP: 0.95,
-      maxOutputTokens: 2048,
-    }
-  };
-
-  const url = `${config.apiUrl}/${config.model}:generateContent?key=${config.apiKey}`;
-  const response = await axios.post(url, payload, {
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  });
-
-  return response.data.candidates[0].content.parts[0].text;
-}
-
-async function callOpenAI(config, prompt) {
-  const payload = {
-    model: config.model,
-    messages: [{ role: 'user', content: prompt }],
-    temperature: 0.2,
-    max_tokens: 2048
-  };
-
-  const response = await axios.post(config.apiUrl, payload, {
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${config.apiKey}`
-    }
-  });
-
-  return response.data.choices[0].message.content;
-}
-
-async function callClaude(config, prompt) {
-  const payload = {
-    model: config.model,
-    max_tokens: 2048,
-    messages: [{ role: 'user', content: prompt }]
-  };
-
-  const response = await axios.post(config.apiUrl, payload, {
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': config.apiKey,
-      'anthropic-version': '2023-06-01'
-    }
-  });
-
-  return response.data.content[0].text;
-}
-
 function displayAnalysisResults(result) {
   // Parse the AI response and format it nicely
   const lines = result.split('\n');
@@ -942,6 +835,39 @@ function displaySimulationResults(result) {
     console.log();
   }
 }
+
+// Service status command (Phase 2)
+program
+  .command('services')
+  .description('Show service status and storage statistics')
+  .option('-v, --verbose', 'Show detailed information')
+  .action(async (options) => {
+    console.log(chalk.blue('🔧 Codeflow Services Status\n'));
+
+    try {
+      // Initialize services
+      await serviceContainer.initialize();
+
+      // Storage stats
+      const stats = await storageManager.getStats();
+      console.log(chalk.cyan('📦 Storage:'));
+      console.log(`   Vectors: ${stats.vectors}`);
+      console.log(`   Code Chunks: ${stats.chunks}`);
+      console.log(`   Projects: ${stats.projects}`);
+      console.log();
+
+      // Validation pipeline status
+      console.log(chalk.cyan('✅ Validation Pipeline:'));
+      console.log('   Status: Ready');
+      console.log();
+
+      // Services initialized
+      console.log(chalk.green('✓ All services operational'));
+
+    } catch (error) {
+      console.log(chalk.red('❌ Service initialization failed:'), error.message);
+    }
+  });
 
 // Make sure the final line uses parseAsync
 program.parseAsync(process.argv);

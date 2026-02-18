@@ -1,8 +1,7 @@
 import {
   PipelineConfig,
   StageConfig,
-  SimulationMode,
-  RetryPolicy
+  SimulationMode
 } from './types';
 
 /**

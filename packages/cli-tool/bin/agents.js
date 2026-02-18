@@ -1,7 +1,7 @@
 // Specialized AI Agents for code review
 // Implements agentic workflow with structured outputs
 
-import { callAIProvider } from './codeflow-hook.js';
+import { callAIProvider } from './ai-provider.js';
 
 // Security Review Agent
 export async function securityReview(codeBlock, context, config) {

@@ -167,7 +167,7 @@ export class SimulationEngine {
   private async executeStage(
     stageConfig: StageConfig,
     pipelineConfig: PipelineConfig,
-    logs: string[]
+    _logs: string[]
   ): Promise<StageExecution> {
     const startTime = Date.now();
     const stageLogs: string[] = [];
@@ -309,7 +309,7 @@ export class SimulationEngine {
   /**
    * Simulate resource usage for a stage
    */
-  private simulateResourceUsage(stageConfig: StageConfig, _duration: number): StageMetrics {
+  private simulateResourceUsage(_stageConfig: StageConfig, _duration: number): StageMetrics {
     // Simulate realistic resource usage patterns
     const baseCpu = 20 + Math.random() * 60; // 20-80% CPU
     const baseMemory = 100 + Math.random() * 400; // 100-500MB
@@ -330,7 +330,7 @@ export class SimulationEngine {
   private simulateTriggerStage(
     stageConfig: StageConfig,
     success: boolean,
-    duration: number,
+    _duration: number,
     metrics: StageMetrics
   ): { success: boolean; logs: string[]; metrics: StageMetrics; errors?: ErrorInfo[] } {
     const logs: string[] = [];

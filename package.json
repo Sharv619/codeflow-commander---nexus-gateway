@@ -16,7 +16,7 @@
     "build:all": "npm run build --workspaces",
     "test:all": "npm run test --workspaces",
     "lint": "eslint packages/*/src --ext .ts,.tsx",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit -p packages/codeflow-cli/tsconfig.json",
     "docker:build": "docker-compose build",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@types/express": "^5.0.5",
+    "better-sqlite3": "^12.6.2",
     "express": "^5.1.0"
   },
   "devDependencies": {

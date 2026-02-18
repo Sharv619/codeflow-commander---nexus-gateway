@@ -661,7 +661,7 @@ export class SQLiteVectorStore implements VectorStorageBackend {
 
   async cleanup(retentionPolicies: RetentionPolicy[]): Promise<number> {
     // Implement retention policy-based cleanup
-    let cleaned = 0;
+    const cleaned = 0;
     // Implementation would iterate through policies and delete/compress old data
     return cleaned;
   }
@@ -808,8 +808,7 @@ export class JSONMetadataStore implements MetadataStorageBackend {
  * SQLite Metadata Store - Database-backed metadata storage
  */
 export class SQLiteMetadataStore implements MetadataStorageBackend {
-  // Implementation would be similar to SQLiteVectorStore but for key-value metadata
-  // Omitted for brevity - would follow similar patterns
+  constructor(private _config: StorageConfig, private _logger: Logger) {}
 
   async store(key: string, data: any): Promise<void> {
     // Implementation
@@ -828,10 +827,3 @@ export class SQLiteMetadataStore implements MetadataStorageBackend {
     // Implementation
   }
 }
-
-export type {
-  StorageConfig,
-  RetentionPolicy,
-  VectorEntry,
-  VectorMetadata
-};

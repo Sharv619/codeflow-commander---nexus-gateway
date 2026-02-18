@@ -1,4 +1,3 @@
-// @ts-expect-error - gremlin doesn't have official TypeScript types
 import gremlin from 'gremlin';
 
 /**

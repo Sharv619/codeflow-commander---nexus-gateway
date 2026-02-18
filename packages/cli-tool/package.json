@@ -1,10 +1,10 @@
 
 {
   "name": "codeflow-hook",
-  "version": "2.0.2",
-  "description": "An interactive CI/CD simulator and lightweight pre-push code reviewer using Gemini AI",
+  "version": "3.0.0",
+  "description": "AI-powered code reviewer with LOCAL MODE support - use Ollama for 100% offline operation",
   "type": "module",
-  "main": "index.js",
+  "main": "bin/codeflow-hook.js",
   "bin": {
     "codeflow-hook": "bin/codeflow-hook.js"
   },
@@ -15,7 +15,9 @@
   ],
   "scripts": {
     "build": "tsc",
-    "test": "jest"
+    "dev": "tsc --watch",
+    "test": "jest",
+    "prepublishOnly": "npm run build && npm test"
   },
   "keywords": [
     "git",
@@ -24,7 +26,12 @@
     "cd",
     "code-review",
     "ai",
-    "gemini"
+    "ollama",
+    "local",
+    "offline",
+    "gemini",
+    "openai",
+    "claude"
   ],
   "author": "Sharv619",
   "license": "MIT",
@@ -35,7 +42,9 @@
     "ora": "^7.0.1",
     "simple-git": "^3.20.0",
     "winston": "^3.11.0",
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "sql.js": "^1.8.0",
+    "fs-extra": "^11.2.0"
   },
   "devDependencies": {
     "@types/node": "^18.0.0",

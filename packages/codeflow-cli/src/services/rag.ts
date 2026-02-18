@@ -413,12 +413,36 @@ export class RAGService {
    * Validate overall context quality through the validation pipeline
    */
   private async validateContextQuality(query: RAGQuery, chunks: ContextChunk[]): Promise<ValidationResult> {
+    const projectState = stateManager.getProjectState(this.projectId);
+    const globalState = stateManager.getGlobalState();
+    const defaultSafety = globalState.ai.safety;
+    const projectSafety = projectState?.overrides?.safetyControls;
+    const safetyControls: SafetyControls = {
+      ...defaultSafety,
+      ...projectSafety,
+      confidenceThresholds: {
+        ...defaultSafety.confidenceThresholds,
+        ...projectSafety?.confidenceThresholds
+      },
+      riskAssessment: {
+        ...defaultSafety.riskAssessment,
+        ...projectSafety?.riskAssessment
+      },
+      operationalLimits: {
+        ...defaultSafety.operationalLimits,
+        ...projectSafety?.operationalLimits
+      },
+      emergencyMode: {
+        ...defaultSafety.emergencyMode,
+        ...projectSafety?.emergencyMode
+      }
+    };
+    
     const validationContext: ValidationContext = {
       sessionId: `rag_${this.projectId}_${Date.now()}`,
       projectId: this.projectId,
       developerId: 'system', // RAG service runs as system
-      safetyControls: stateManager.getProjectState(this.projectId).overrides?.safetyControls ||
-                      stateManager.getGlobalState().ai.safety,
+      safetyControls,
       metadata: {
         queryContent: query.content,
         chunkCount: chunks.length,
@@ -632,15 +656,5 @@ export class RAGService {
     return [];
   }
 }
-
-/**
- * Main interface functions
- */
-export type {
-  ContextChunk,
-  ContextRetrievalResult,
-  RAGQuery,
-  RAGQueryOptions
-};
 
 export default RAGService;

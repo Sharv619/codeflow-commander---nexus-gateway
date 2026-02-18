@@ -1,0 +1,51 @@
+# Simplified Unified Dockerfile for CodeFlow CI/CD Pipeline
+# Uses pre-built frontend and Python backend
+
+FROM python:3.12-slim
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    curl \
+    wget \
+    git \
+    nginx \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create and set working directory
+WORKDIR /app
+
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY server.py .
+COPY ai_code_reviewer.py .
+COPY setup.py .
+
+# Create results directory
+RUN mkdir -p /app/results
+
+# Copy nginx configuration
+COPY nginx/default.conf /etc/nginx/conf.d/default.conf
+
+# Copy pre-built frontend
+COPY packages/simulator-ui/dist /usr/share/nginx/html
+
+# Expose ports
+EXPOSE 3001 80
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:3001/ || exit 1
+
+# Start both services
+CMD ["sh", "-c", "nginx & uvicorn server:app --host 0.0.0.0 --port 3001"]

@@ -775,6 +775,167 @@ class PatternExtractionEngine {
 
 ---
 
+## 4. Docker Deployment
+
+### 4.1 Docker Compose Overview
+
+The EKG services are deployed using Docker Compose with two main services:
+
+| Service | Port | Description |
+|---------|------|-------------|
+| ekg-ingestion | 3000 | Receives repository data and stores in Neptune |
+| ekg-query | 4000 | GraphQL API for querying EKG context |
+| gremlin-server | 8182 | Local graph database (optional) |
+
+### 4.2 Quick Start
+
+```bash
+# Start EKG services
+docker compose -f docker-compose.ekg.yml up -d
+
+# Verify services
+curl http://localhost:3000/health
+curl http://localhost:4000/health
+```
+
+### 4.3 Environment Variables Reference
+
+| Variable | Description | Required | Default |
+|----------|-------------|----------|---------|
+| `PORT` | Service port | No | 3000/4000 |
+| `NODE_ENV` | Environment | No | production |
+| `SKIP_NEPTUNE` | Skip Neptune connection | No | false |
+| `NEPTUNE_ENDPOINT` | Neptune cluster endpoint | If SKIP_NEPTUNE=false | - |
+| `NEPTUNE_PORT` | Neptune port | No | 8182 |
+| `NEPTUNE_AUTH_MODE` | IAM or none | No | IAM |
+| `AWS_REGION` | AWS region for Neptune | If using AWS Neptune | us-east-1 |
+| `WEBHOOK_SECRET` | Webhook authentication | Yes | dev-secret-123 |
+| `CORS_ORIGIN` | CORS allowed origins | No | * |
+| `GITHUB_TOKEN` | GitHub API token | No | - |
+
+### 4.4 Local Development Mode
+
+For local development without Neptune:
+
+```yaml
+# docker-compose.ekg.yml
+ekg-ingestion:
+  environment:
+    - SKIP_NEPTUNE=true
+```
+
+This mode:
+- ✅ Accepts indexing requests
+- ✅ Returns success responses
+- ✅ Works with CLI tools
+- ❌ Does not store graph data
+
+### 4.5 Production Deployment (AWS Neptune)
+
+#### Prerequisites
+
+1. AWS Neptune cluster running
+2. Security groups configured
+3. IAM roles (if using IAM auth)
+
+#### Configuration
+
+```bash
+# 1. Copy and configure environment
+cp .env.aws.example .env.aws
+# Edit .env.aws with your values
+
+# 2. Source environment
+source .env.aws
+
+# 3. Update docker-compose
+docker compose -f docker-compose.ekg.yml up -d
+```
+
+#### AWS Setup Requirements
+
+- **Neptune Cluster**: Serverless or provisioned instance
+- **Security Groups**: Ports 8182, 3000, 4000
+- **IAM Authentication**: Enable on Neptune cluster
+- **ECS Roles**: Task execution and task roles with neptune-db:Connect
+
+See [EKG_DOCKER_DEPLOYMENT.md](./EKG_DOCKER_DEPLOYMENT.md) for detailed AWS deployment instructions.
+
+---
+
+## 5. CLI Integration
+
+### 5.1 Environment Setup
+
+For local development with EKG services:
+
+```bash
+# Enable localhost connections (for development only)
+export ALLOW_LOCALHOST=true
+
+# Set EKG service URLs
+export INGESTION_SERVICE_URL=http://localhost:3000
+export QUERY_SERVICE_URL=http://localhost:4000
+```
+
+### 5.2 CLI Commands
+
+```bash
+# Index repository
+npx codeflow-hook index
+
+# Analyze diff with EKG context
+git diff --staged | npx codeflow-hook analyze-diff
+```
+
+### 5.3 Git Hook Integration
+
+The pre-push hook automatically uses EKG services when configured:
+
+```bash
+# Ensure environment variables are set in your shell profile
+echo 'export ALLOW_LOCALHOST=true' >> ~/.bashrc
+echo 'export INGESTION_SERVICE_URL=http://localhost:3000' >> ~/.bashrc
+echo 'export QUERY_SERVICE_URL=http://localhost:4000' >> ~/.bashrc
+source ~/.bashrc
+```
+
+---
+
+## 6. Troubleshooting
+
+### Common Issues
+
+| Issue | Solution |
+|-------|----------|
+| Connection refused | Check services are running: `docker ps` |
+| Invalid URL error | Set `ALLOW_LOCALHOST=true` for local dev |
+| Neptune timeout | Verify SKIP_NEPTUNE=true or check Neptune endpoint |
+| Build errors | Rebuild: `docker compose build --no-cache` |
+
+### Health Checks
+
+```bash
+# Ingestion service
+curl http://localhost:3000/health
+
+# Query service
+curl http://localhost:4000/health
+```
+
+### Logs
+
+```bash
+# View all logs
+docker compose -f docker-compose.ekg.yml logs
+
+# View specific service
+docker compose -f docker-compose.ekg.yml logs ekg-ingestion
+docker compose -f docker-compose.ekg.yml logs ekg-query
+```
+
+---
+
 ## 3. Query Service with GraphQL API
 
 ### 3.1 GraphQL Schema and Resolvers

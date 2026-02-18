@@ -53,7 +53,7 @@ describe('Codeflow Hook CLI', () => {
     expect(packageJson.name).toBe('codeflow-hook');
     expect(packageJson.version).toMatch(/^\d+\.\d+\.\d+$/);
     expect(packageJson.bin['codeflow-hook']).toBe('bin/codeflow-hook.js');
-    expect(packageJson.main).toBe('index.js');
+    expect(packageJson.main).toBe('bin/codeflow-hook.js');
     expect(packageJson.type).toBe('module');
   });
 

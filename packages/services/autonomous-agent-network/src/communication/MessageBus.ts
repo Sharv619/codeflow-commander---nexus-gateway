@@ -7,12 +7,11 @@ import { v4 as generateUuid } from 'uuid';
 
 import {
   AgentMessage,
-  MessageType,
-  MessagePriority
+  MessageType
 } from '../types/agent.js';
 
 export class MessageBus extends EventEmitter {
-  private subscribers: Map<string, Set<Function>> = new Map();
+  private subscribers: Map<string, Set<(msg: AgentMessage) => void>> = new Map();
   private messageQueue: AgentMessage[] = [];
   private processingEnabled: boolean = true;
 
@@ -58,7 +57,7 @@ export class MessageBus extends EventEmitter {
 
   private unsubscribe(
     messageType: MessageType | string,
-    callback: Function,
+    callback: (msg: AgentMessage) => void,
     agentId?: string
   ): void {
     const key = agentId ? `${agentId}:${messageType}` : messageType;

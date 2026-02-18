@@ -201,6 +201,35 @@ codeflow-hook status                  # Check configuration
 | Frontend (Nginx) | 8080 | Production static serving |
 | Backend API | 3001 | Express server with AI integration |
 
+### **EKG Services (Enterprise Knowledge Graph)**
+
+For enhanced code analysis with cross-repository learning:
+
+```bash
+# Start EKG services
+docker compose -f docker-compose.ekg.yml up -d
+
+# EKG Ingestion Service: http://localhost:3000
+# EKG Query Service: http://localhost:4000
+```
+
+#### **CLI with EKG Services**
+
+```bash
+# Enable local EKG services (for development)
+export ALLOW_LOCALHOST=true
+export INGESTION_SERVICE_URL=http://localhost:3000
+export QUERY_SERVICE_URL=http://localhost:4000
+
+# Index repository to EKG
+npx codeflow-hook index
+
+# Analyze with EKG context
+git diff --staged | npx codeflow-hook analyze-diff
+```
+
+See [docs/EKG_DOCKER_DEPLOYMENT.md](./docs/EKG_DOCKER_DEPLOYMENT.md) for detailed EKG setup instructions.
+
 ## ⚙️ **Configuration**
 
 ### **Environment Variables** (`.env`)
