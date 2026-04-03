@@ -48,7 +48,10 @@ function analyzeCode(diffText) {
           fileIssues.push({ line: j + 1, type: 'Quality', description: 'Left TODO/FIXME in code', link: null });
           score -= 2;
         }
-        if (/password|secret|apikey|api_key/i.test(ln)) {
+        // Only flag lines that look like actual secret assignments, not variable references
+        // Matches: password = "...", secret = "...", api_key = "...", apikey = "..."
+        // Skips: config.apiKey, req.body.password, typeof secret, etc.
+        if (/(?:password|secret|apikey|api_key)\s*[=:]\s*["'][^"']+["']/i.test(ln)) {
           fileIssues.push({ line: j + 1, type: 'Security', description: 'Potential secret leaked in code', link: null });
           score -= 4;
         }

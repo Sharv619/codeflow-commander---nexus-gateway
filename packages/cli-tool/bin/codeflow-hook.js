@@ -26,13 +26,16 @@ program
 // Configure AI provider settings
 program
   .command('config')
-  .description('Configure AI provider settings')
-  .option('-p, --provider <provider>', 'AI provider (gemini, openai, claude)', 'gemini')
-  .option('-k, --key <key>', 'API key for the chosen provider')
-  .option('-u, --url <url>', 'Custom API URL (optional)')
-  .option('-m, --model <model>', 'AI model name (optional - uses provider default)')
+  .description('Configure AI provider settings (gemini, openai, claude, ollama)')
+  .option('-p, --provider <provider>', 'AI provider (gemini, openai, claude, ollama)', 'gemini')
+  .option('-k, --key <key>', 'API key for cloud providers (not needed for ollama)')
+  .option('-u, --url <url>', 'Custom API URL (for ollama: http://localhost:11434)')
+  .option('-m, --model <model>', 'AI model name (for ollama: auto-discovered if not specified)')
+  .option('--ollama-enable', 'Enable Ollama as the primary provider')
+  .option('--ollama-disable', 'Disable Ollama and use cloud provider instead')
+  .option('--ollama-url <url>', 'Ollama server URL (default: http://localhost:11434)')
+  .option('--list-models', 'List available Ollama models and exit')
   .action(async (options) => {
-    // Use USERPROFILE on Windows instead of HOME which might be undefined
     const homeDir = process.env.HOME || process.env.USERPROFILE;
     const configDir = path.join(homeDir, '.codeflow-hook');
     if (!fs.existsSync(configDir)) {
@@ -40,164 +43,186 @@ program
     }
 
     const configPath = path.join(configDir, 'config.json');
-
-    // Configuration cascade: Check for project-level config first, then fall back to global
-    const projectConfigPath = path.join(process.cwd(), '.codeflowrc.json');
-    const projectConfig = fs.existsSync(projectConfigPath) ? JSON.parse(fs.readFileSync(projectConfigPath, 'utf8')) : {};
-
     const existingConfig = fs.existsSync(configPath) ? JSON.parse(fs.readFileSync(configPath, 'utf8')) : {};
 
-    // Show config cascade message
-    if (Object.keys(projectConfig).length > 0) {
-      console.log(chalk.blue('📁 Using configuration cascade (project → global):'));
-      console.log(chalk.gray(`   Project config: ${projectConfigPath}`));
-      if (fs.existsSync(configPath)) {
-        console.log(chalk.gray(`   Global config: ${configPath}`));
-      }
-    }
-
-    // Determine what the new provider and API key should be
-    const requestedProvider = (options.provider || existingConfig.provider || 'gemini').toLowerCase();
-    const requestedApiKey = options.key || existingConfig.apiKey;
-
-    // FIX: Explicit boolean coercion to prevent || operator from returning non-boolean values
-    // Step by step to ensure proper boolean evaluation
-    const hasNewKey = !!options.key;
-    const isFirstTimeSetup = !existingConfig.provider && !existingConfig.apiKey;
-    const shouldValidate = hasNewKey || isFirstTimeSetup;
-
-    console.log('VALIDATION DEBUG - provider:', requestedProvider, 'key_exists:', !!options.key, 'shouldValidate:', shouldValidate);
-
-    if (shouldValidate && requestedApiKey) {
-      console.log(chalk.blue('🔐 Validating API key for provider:', requestedProvider));
-      const validationSpinner = ora('Checking key permissions...').start();
-
+    // List Ollama models mode
+    if (options.listModels) {
+      const ollamaUrl = options.ollamaUrl || existingConfig.ollama?.url || 'http://localhost:11434';
+      console.log(chalk.blue(`🔍 Fetching models from Ollama at ${ollamaUrl}...`));
       try {
-        await validateApiKey(requestedProvider, requestedApiKey);
-        validationSpinner.succeed('API key validated');
+        const { listOllamaModels, isOllamaRunning } = await import('../lib/ai-reviewer.cjs');
+        const running = await isOllamaRunning(ollamaUrl);
+        if (!running) {
+          console.log(chalk.red('❌ Ollama is not running or not reachable'));
+          console.log(chalk.yellow(`💡 Start Ollama: ollama serve`));
+          process.exit(1);
+        }
+        const models = await listOllamaModels(ollamaUrl);
+        if (models.length === 0) {
+          console.log(chalk.yellow('⚠️  No models found. Pull a model first:'));
+          console.log(chalk.gray('   ollama pull qwen2.5-coder'));
+          console.log(chalk.gray('   ollama pull deepseek-coder'));
+          console.log(chalk.gray('   ollama pull codellama'));
+        } else {
+          console.log(chalk.green(`✅ Found ${models.length} model(s):`));
+          models.forEach((m, i) => console.log(chalk.gray(`  ${i + 1}. ${m}`)));
+        }
+        process.exit(0);
       } catch (error) {
-        validationSpinner.fail('Validation failed');
-        console.error(chalk.red(`❌ ${error.message}`));
-        console.error(chalk.red(`💡 Make sure you're using a valid ${requestedProvider.toUpperCase()} API key for the ${requestedProvider} provider.`));
+        console.log(chalk.red(`❌ Failed to connect to Ollama: ${error.message}`));
         process.exit(1);
       }
-    } else {
-      console.log(chalk.yellow('⚠️ Validation skipped - no API key validation needed'));
     }
 
-    // Initialize config with existing values, then override with verified CLI options
+    const requestedProvider = (options.provider || existingConfig.provider || 'gemini').toLowerCase();
+    const ollamaEnabled = options.ollamaEnable === true ||
+      (options.ollamaEnable === undefined && options.ollamaDisable === undefined && existingConfig.ollama?.enabled === true) ||
+      requestedProvider === 'ollama';
+
+    // Initialize config structure
     const config = {
-      provider: requestedProvider,
-      apiKey: requestedApiKey,
+      provider: requestedProvider === 'ollama' ? 'ollama' : (existingConfig.provider || 'gemini'),
+      apiKey: options.key || existingConfig.apiKey,
       apiUrl: options.url || existingConfig.apiUrl,
-      model: options.model || existingConfig.model
+      model: options.model || existingConfig.model,
+      ollama: {
+        enabled: ollamaEnabled,
+        url: options.ollamaUrl || existingConfig.ollama?.url || 'http://localhost:11434'
+      }
     };
 
-    // Interactive model selection if model is not explicitly provided
-    if (!options.model) {
-      // FIX: More robust logic for when to fetch new models
-      const isNewProvider = existingConfig.provider && (existingConfig.provider.toLowerCase() !== config.provider.toLowerCase());
-      const hasNewKey = !!options.key;
+    // If Ollama is the primary provider, discover models
+    if (config.ollama.enabled) {
+      console.log(chalk.blue('🦙 Ollama provider detected'));
+      console.log(chalk.gray(`   URL: ${config.ollama.url}`));
 
-      const shouldFetchModels = !existingConfig.model || isNewProvider || hasNewKey;
+      try {
+        const { listOllamaModels, isOllamaRunning } = await import('../lib/ai-reviewer.cjs');
+        const running = await isOllamaRunning(config.ollama.url);
 
-      if (shouldFetchModels) {
-        console.log(chalk.blue('🔍 Fetching available models...'));
-
-        const modelSpinner = ora('Contacting API...').start();
-        try {
-          const models = await fetchModels(config.provider, config.apiKey);
-          modelSpinner.succeed('Models fetched successfully');
-
-          console.log(chalk.blue('Available models:'));
-          models.forEach((model, index) => {
-            console.log(chalk.gray(`  ${index + 1}. ${model}`));
-          });
-
-          const rl = readline.createInterface({
-            input: process.stdin,
-            output: process.stdout
-          });
-
-          const selectedModel = await new Promise(resolve => {
-            rl.question(chalk.blue(`Enter the model name (or number): `), (input) => {
-              rl.close();
-              resolve(input.trim());
-            });
-          });
-
-          // Check if user entered a number
-          const index = parseInt(selectedModel) - 1;
-          if (!isNaN(index) && index >= 0 && index < models.length) {
-            config.model = models[index];
-          } else {
-            config.model = selectedModel;
+        if (!running) {
+          console.log(chalk.yellow('⚠️  Ollama is not running or not reachable'));
+          console.log(chalk.yellow('   Models will not be auto-discovered'));
+          if (!config.model) {
+            console.log(chalk.gray('   Using default model: qwen2.5-coder'));
+            config.model = 'qwen2.5-coder';
           }
-
-          console.log(chalk.green(`✓ Selected model: ${config.model}`));
-
-        } catch (error) {
-          modelSpinner.fail('Failed to fetch models');
-          console.error(chalk.red(`❌ API Error: ${error.message}`));
-          // Fallback to hardcoded list if API call fails
-          const fallbackModels = getFallbackModels(config.provider);
-
-          console.log(chalk.yellow('⚠️ Using fallback model list:'));
-          fallbackModels.forEach((model, index) => {
-            console.log(chalk.gray(`  ${index + 1}. ${model}`));
-          });
-
-          const rl = readline.createInterface({
-            input: process.stdin,
-            output: process.stdout
-          });
-
-          const selectedModel = await new Promise(resolve => {
-            rl.question(chalk.blue(`Select a model (name or number): `), (input) => {
-              rl.close();
-              resolve(input.trim());
-            });
-          });
-
-          const index = parseInt(selectedModel) - 1;
-          if (!isNaN(index) && index >= 0 && index < fallbackModels.length) {
-            config.model = fallbackModels[index];
+        } else {
+          const models = await listOllamaModels(config.ollama.url);
+          if (models.length === 0) {
+            console.log(chalk.yellow('⚠️  No Ollama models found'));
+            console.log(chalk.gray('   Pull a model: ollama pull qwen2.5-coder'));
+            if (!config.model) {
+              config.model = 'qwen2.5-coder';
+            }
           } else {
-            config.model = selectedModel;
-          }
+            console.log(chalk.green(`✅ Found ${models.length} model(s):`));
+            models.forEach((m, i) => console.log(chalk.gray(`  ${i + 1}. ${m}`)));
 
-          console.log(chalk.green(`✓ Selected fallback model: ${config.model}`));
+            // Auto-select or prompt
+            if (!options.model) {
+              const defaultModel = models.find(m => m.includes('coder') || m.includes('code')) || models[0];
+              console.log(chalk.blue(`\n💡 Recommended: ${defaultModel}`));
+
+              const rl = readline.createInterface({
+                input: process.stdin,
+                output: process.stdout
+              });
+
+              const input = await new Promise(resolve => {
+                rl.question(chalk.blue(`Select model (name or number, Enter for ${defaultModel}): `), (answer) => {
+                  rl.close();
+                  resolve(answer.trim());
+                });
+              });
+
+              if (input === '') {
+                config.model = defaultModel;
+              } else {
+                const idx = parseInt(input) - 1;
+                config.model = (!isNaN(idx) && idx >= 0 && idx < models.length) ? models[idx] : input;
+              }
+              console.log(chalk.green(`✓ Selected: ${config.model}`));
+            }
+          }
         }
-      } else {
-        // Reuse existing model and config
-        console.log(chalk.blue(`📚 Using existing configuration (provider: ${existingConfig.provider}, model: ${existingConfig.model})`));
+      } catch (error) {
+        console.log(chalk.yellow(`⚠️  Could not connect to Ollama: ${error.message}`));
+        if (!config.model) {
+          config.model = 'qwen2.5-coder';
+        }
       }
-    } else {
-      // User explicitly provided model
-      console.log(chalk.green(`✓ Using specified model: ${config.model}`));
+    } else if (options.key || !existingConfig.apiKey) {
+      // Cloud provider setup with API key validation
+      const hasNewKey = !!options.key;
+      const isFirstTime = !existingConfig.provider && !existingConfig.apiKey;
+      const shouldValidate = hasNewKey || isFirstTime;
+
+      if (shouldValidate && config.apiKey) {
+        console.log(chalk.blue(`🔐 Validating API key for ${config.provider}...`));
+        try {
+          await validateApiKey(config.provider, config.apiKey);
+          console.log(chalk.green('✅ API key validated'));
+        } catch (error) {
+          console.log(chalk.red(`❌ ${error.message}`));
+          process.exit(1);
+        }
+      }
+
+      // Set default API URL for cloud providers
+      if (!config.apiUrl) {
+        switch (config.provider) {
+          case 'openai':
+            config.apiUrl = 'https://api.openai.com/v1/chat/completions';
+            break;
+          case 'claude':
+            config.apiUrl = 'https://api.anthropic.com/v1/messages';
+            break;
+          case 'gemini':
+          default:
+            config.apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
+            break;
+        }
+      }
+
+      // Interactive model selection for cloud providers
+      if (!options.model) {
+        const shouldFetch = !existingConfig.model || existingConfig.provider !== config.provider || hasNewKey;
+        if (shouldFetch) {
+          console.log(chalk.blue('🔍 Fetching available models...'));
+          try {
+            const models = await fetchModels(config.provider, config.apiKey);
+            console.log(chalk.blue('Available models:'));
+            models.forEach((m, i) => console.log(chalk.gray(`  ${i + 1}. ${m}`)));
+
+            const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+            const input = await new Promise(resolve => {
+              rl.question(chalk.blue('Enter model name or number: '), (a) => { rl.close(); resolve(a.trim()); });
+            });
+            const idx = parseInt(input) - 1;
+            config.model = (!isNaN(idx) && idx >= 0 && idx < models.length) ? models[idx] : input;
+          } catch {
+            const fallbacks = getFallbackModels(config.provider);
+            fallbacks.forEach((m, i) => console.log(chalk.gray(`  ${i + 1}. ${m}`)));
+            const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+            const input = await new Promise(resolve => {
+              rl.question(chalk.blue('Select model: '), (a) => { rl.close(); resolve(a.trim()); });
+            });
+            const idx = parseInt(input) - 1;
+            config.model = (!isNaN(idx) && idx >= 0 && idx < fallbacks.length) ? fallbacks[idx] : input;
+          }
+        }
+      }
     }
 
-    // Set default API URL if not provided by options or existing config
-    if (!config.apiUrl) {
-      switch (config.provider) {
-        case 'openai':
-          config.apiUrl = 'https://api.openai.com/v1/chat/completions';
-          break;
-        case 'claude':
-          config.apiUrl = 'https://api.anthropic.com/v1/messages';
-          break;
-        case 'gemini':
-        default:
-          // Updated Gemini API URL to v1 - using a base URL
-          config.apiUrl = 'https://generativelanguage.googleapis.com/v1/models';
-          break;
-      }
-    }
-
+    // Save config
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-    console.log(chalk.green(`✅ Configuration saved for ${config.provider} provider`));
-    if (config.model) {
-      console.log(chalk.green(`   Model: ${config.model}`));
+    console.log(chalk.green('\n✅ Configuration saved'));
+    console.log(chalk.gray(`   Provider: ${config.provider}`));
+    console.log(chalk.gray(`   Model: ${config.model}`));
+    console.log(chalk.gray(`   Ollama: ${config.ollama.enabled ? 'enabled (' + config.ollama.url + ')' : 'disabled'}`));
+    if (config.apiKey) {
+      console.log(chalk.gray(`   API Key: ${config.apiKey.substring(0, 8)}...`));
     }
   });
 
@@ -332,7 +357,13 @@ program
       } else {
         const icon = result.success ? '✅' : '❌';
         const color = result.success ? chalk.green : chalk.red;
+        const providerLabel = result.provider === 'ollama' ? '🦙 Ollama' :
+          result.provider === 'heuristic' ? '🔍 Heuristic' :
+          result.provider === 'gemini' ? '💎 Gemini' :
+          result.provider === 'openai' ? '🔵 OpenAI' :
+          result.provider === 'claude' ? '🟣 Claude' : result.provider;
         console.log(color(`${icon} ${result.message}`));
+        console.log(chalk.gray(`   Provider: ${providerLabel}${result.usedFallback ? ' (fallback)' : ''}`));
 
         if (result.result.score) {
           console.log(chalk.blue(`📊 Score: ${result.result.score}/10 (threshold: ${minScore}/10)`));
@@ -452,11 +483,10 @@ program
 program
   .command('status')
   .description('Show installation and configuration status')
-  .action(() => {
+  .action(async () => {
     console.log(chalk.blue('🔍 Codeflow Hook Status'));
     console.log();
 
-    // Check configuration cascade
     const globalConfigPath = path.join(os.homedir(), '.codeflow-hook', 'config.json');
     const projectConfigPath = path.join(process.cwd(), '.codeflowrc.json');
 
@@ -470,16 +500,35 @@ program
     }
 
     if (hasGlobalConfig) {
+      const config = JSON.parse(fs.readFileSync(globalConfigPath, 'utf8'));
       console.log(chalk.green('✅ Global Configuration: Found'));
+      console.log(chalk.gray(`   Provider: ${config.provider || 'gemini'}`));
+      console.log(chalk.gray(`   Model: ${config.model || '(not set)'}`));
+      if (config.ollama?.enabled) {
+        console.log(chalk.green(`   Ollama: enabled (${config.ollama.url || 'http://localhost:11434'})`));
+        try {
+          const { isOllamaRunning } = await import('../lib/ai-reviewer.cjs');
+          const running = await isOllamaRunning(config.ollama.url);
+          console.log(running ? chalk.green('   Ollama Status: running') : chalk.yellow('   Ollama Status: not running'));
+        } catch {
+          console.log(chalk.yellow('   Ollama Status: unknown'));
+        }
+      } else {
+        console.log(chalk.gray('   Ollama: disabled'));
+      }
+      if (config.apiKey) {
+        console.log(chalk.gray(`   API Key: ${config.apiKey.substring(0, 8)}...`));
+      }
     } else {
       console.log(chalk.red('❌ Global Configuration: Not found (run: codeflow-hook config)'));
     }
 
     if (!hasGlobalConfig && !hasProjectConfig) {
-      console.log(chalk.red('❌ No configuration found. Run: codeflow-hook config -k <api-key>'));
+      console.log(chalk.red('❌ No configuration found. Run: codeflow-hook config'));
+      console.log(chalk.gray('   Cloud: codeflow-hook config -k <api-key> -p gemini'));
+      console.log(chalk.gray('   Local:  codeflow-hook config --ollama-enable'));
     }
 
-    // Check git hooks
     const hooksDir = '.git/hooks';
     const preCommitHook = path.join(hooksDir, 'pre-commit');
     const prePushHook = path.join(hooksDir, 'pre-push');
@@ -498,9 +547,9 @@ program
 
     console.log();
     console.log(chalk.blue('💡 Tips:'));
-    console.log(chalk.gray('   • Create .codeflowrc.json in project root for project-specific settings'));
-    console.log(chalk.gray('   • Large diffs (>20KB) will prompt for confirmation to avoid high costs'));
-    console.log(chalk.gray('   • Run "codeflow-hook config -h" for configuration options'));
+    console.log(chalk.gray('   • Use --ollama-enable for local AI (no API key needed)'));
+    console.log(chalk.gray('   • List Ollama models: codeflow-hook config --list-models'));
+    console.log(chalk.gray('   • Large diffs (>20KB) use heuristic fallback'));
   });
 
 
