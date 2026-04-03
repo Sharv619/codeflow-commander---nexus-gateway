@@ -661,7 +661,7 @@ export class SQLiteVectorStore implements VectorStorageBackend {
 
   async cleanup(retentionPolicies: RetentionPolicy[]): Promise<number> {
     // Implement retention policy-based cleanup
-    let cleaned = 0;
+    const cleaned = 0;
     // Implementation would iterate through policies and delete/compress old data
     return cleaned;
   }

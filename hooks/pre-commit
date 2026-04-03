@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Codeflow three-stage pre-commit hook
+# Stage 1: Lint (catch style issues)
+# Stage 2: Tests (validate logic)
+# Stage 3: AI Review (principal engineer code review with score threshold)
+set -e
+
+echo "🔬 Running Codeflow pre-commit checks..."
+
+# Stage 1: Lint
+echo "📐 Stage 1/3: Linting..."
+if npm run lint --silent 2>/dev/null; then
+  echo "✅ Lint passed"
+else
+  echo "❌ Lint failed — fix issues before committing"
+  npm run lint 2>&1 | tail -20
+  exit 1
+fi
+
+# Stage 2: Tests
+echo "🧪 Stage 2/3: Running tests..."
+if npm run test:pre-commit --silent 2>/dev/null; then
+  echo "✅ Tests passed"
+else
+  echo "❌ Tests failed — fix failures before committing"
+  npm run test:pre-commit 2>&1 | tail -20
+  exit 1
+fi
+
+# Stage 3: AI Code Review (only if there are staged changes)
+STAGED_DIFF=$(git diff --cached --no-color)
+if [ -n "$STAGED_DIFF" ]; then
+  DIFF_SIZE=${#STAGED_DIFF}
+  if [ "$DIFF_SIZE" -gt 20000 ]; then
+    echo "⚠️  Stage 3/3: Diff too large for AI review (${DIFF_SIZE} bytes > 20KB), using heuristic only"
+    # Still run heuristic analysis
+    echo "$STAGED_DIFF" | npx codeflow-hook analyze-diff --min-score 3 --json 2>/dev/null | node -e "
+      const data = JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf8'));
+      if (data.success) {
+        console.log('✅ Heuristic review passed — ' + data.message);
+      } else {
+        console.log('❌ Heuristic review failed — ' + data.message);
+        process.exit(1);
+      }
+    " || exit 1
+  else
+    echo "🤖 Stage 3/3: AI Code Review..."
+    echo "$STAGED_DIFF" | npx codeflow-hook analyze-diff --min-score 3 || exit 1
+  fi
+else
+  echo "ℹ️  Stage 3/3: No staged changes to review"
+fi
+
+echo "🎉 All checks passed!"
+exit 0

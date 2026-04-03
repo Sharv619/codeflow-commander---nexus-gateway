@@ -7,6 +7,7 @@ import path from 'path';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+import { analyzeCode, normalizeEslintOutput } from './analyzer.js';
 
 dotenv.config();
 
@@ -59,93 +60,6 @@ function saveResults() {
 
 loadResults();
 
-// Simple deterministic analyzer that converts a diff string into a CodeReviewResult-like object
-function analyzeCode(diffText) {
-    // Very small heuristic-based analyzer — look for keywords to generate issues
-    const issues = [];
-    const files = [];
-
-    const lines = (diffText || '').split(/\r?\n/).slice(0, 500);
-    let fileCount = 0;
-
-    for (let i = 0; i < lines.length; i++) {
-        const l = lines[i];
-        if (l.startsWith('+++ b/')) {
-            fileCount++;
-            const fileName = l.replace('+++ b/', '').trim();
-            const fileIssues = [];
-            const suggestions = [];
-            let score = 10;
-
-            // Scan a few lines after the file header for common bad patterns
-            for (let j = i + 1; j < Math.min(i + 30, lines.length); j++) {
-                const ln = lines[j];
-                if (/TODO|FIXME/.test(ln)) {
-                    fileIssues.push({ line: j + 1, type: 'Quality', description: 'Left TODO/FIXME in code', link: null });
-                    score -= 2;
-                }
-                if (/password|secret|apikey|api_key/i.test(ln)) {
-                    fileIssues.push({ line: j + 1, type: 'Security', description: 'Potential secret leaked in code', link: null });
-                    score -= 4;
-                }
-                if (/console\.log\(|fmt\.Println\(|print\(/.test(ln)) {
-                    suggestions.push('Remove debug prints from production code');
-                    score -= 1;
-                }
-                if (/==\s*null|!=\s*null/.test(ln)) {
-                    fileIssues.push({ line: j + 1, type: 'Best Practice', description: 'Prefer explicit null checks or optional chaining', link: null });
-                    score -= 1;
-                }
-            }
-
-            files.push({ fileName, status: fileIssues.length === 0 ? 'PASS' : 'FAIL', score: Math.max(1, score), issues: fileIssues, suggestions });
-        }
-    }
-
-    // If no files detected, create a default file result
-    if (files.length === 0) {
-        files.push({ fileName: 'unknown', status: 'PASS', score: 10, issues: [], suggestions: [] });
-    }
-
-    const overallStatus = files.every(f => f.status === 'PASS') ? 'PASS' : 'FAIL';
-    const summary = overallStatus === 'PASS' ? 'No critical issues found.' : 'Issues detected — review required.';
-
-    return { overallStatus, summary, files };
-}
-
-// Translate raw ESLint JSON output into the CodeReviewResult shape expected by the frontend
-function normalizeEslintOutput(eslintJson) {
-    // eslintJson is expected to be an array of file results produced by ESLint's JSON formatter
-    if (!Array.isArray(eslintJson)) {
-        return { overallStatus: 'PASS', summary: 'No issues found.', files: [] };
-    }
-
-    const files = [];
-    let totalErrors = 0;
-
-    for (const f of eslintJson) {
-        const errorCount = typeof f.errorCount === 'number' ? f.errorCount : 0;
-        totalErrors += errorCount;
-
-        const issues = (f.messages || []).map(m => ({
-            line: m.line || 0,
-            type: m.ruleId || (m.severity === 2 ? 'error' : m.severity === 1 ? 'warning' : 'unknown'),
-            description: m.message || ''
-        }));
-
-        files.push({
-            fileName: f.filePath || f.fileName || 'unknown',
-            status: errorCount > 0 ? 'FAIL' : 'PASS',
-            issues
-        });
-    }
-
-    const overallStatus = totalErrors > 0 ? 'FAIL' : 'PASS';
-    const summary = totalErrors > 0 ? `${totalErrors} issues found.` : 'No issues found.';
-
-    return { overallStatus, summary, files };
-}
-
 app.post('/analyze', async (req, res) => {
     const { code, diff, commit } = req.body;
     console.log('Analyze request received — commit:', commit ? commit.id : '(no commit)');
@@ -180,7 +94,6 @@ app.post('/analyze', async (req, res) => {
         eslint.stderr.on('data', (chunk) => { err += chunk.toString(); });
 
         eslint.on('close', (code) => {
-            // Try parse stdout first, then stderr
             let parsed = null;
             try {
                 if (out && out.trim()) parsed = JSON.parse(out);
@@ -197,18 +110,14 @@ app.post('/analyze', async (req, res) => {
             }
 
             if (parsed === null) {
-                // Cleanup temp file then return a helpful error
                 try { fs.unlinkSync(tmpFile); } catch (_) {}
                 return res.status(500).json({ error: 'Failed to parse ESLint output', stdout: out, stderr: err, exitCode: code });
             }
 
-            // Cleanup temp file now that ESLint has finished reading it
-            try { fs.unlinkSync(tmpFile); } catch (_) { /* ignore */ }
+            try { fs.unlinkSync(tmpFile); } catch (_) {}
 
-            // Normalize ESLint output into the frontend's expected CodeReviewResult shape
             try {
                 const normalized = normalizeEslintOutput(parsed);
-                // Save the result
                 const resultId = Date.now().toString();
                 results.push({ id: resultId, type: 'analyze', timestamp: new Date().toISOString(), data: normalized });
                 saveResults();
@@ -223,7 +132,6 @@ app.post('/analyze', async (req, res) => {
     }
 });
 
-// Endpoint that would be called by a git hook. Accepts a minimal push payload and runs analysis.
 app.post('/git-hook', async (req, res) => {
     const { branch, commitId, diff } = req.body;
     console.log(`Git hook received for branch=${branch} commit=${commitId}`);
@@ -278,7 +186,7 @@ app.post('/git-hook', async (req, res) => {
                 return res.status(500).json({ error: 'Failed to parse ESLint output', stdout: out, stderr: err, exitCode: code });
             }
 
-            try { fs.unlinkSync(tmpFile); } catch (_) { /* ignore */ }
+            try { fs.unlinkSync(tmpFile); } catch (_) {}
 
             try {
                 const normalized = normalizeEslintOutput(parsed);
@@ -296,12 +204,8 @@ app.post('/git-hook', async (req, res) => {
     }
 });
 
-
 // Server-side AI proxy endpoint
-// Accepts { model?, input } and forwards to a configured GEMINI_API_URL using the
-// GEMINI_API_KEY from environment. This keeps API keys on the server and out of
-// client bundles. Configure GEMINI_API_URL and GEMINI_API_KEY in your environment.
-const aiLimiter = rateLimit({ windowMs: 60 * 1000, max: 30 }); // 30 requests per minute
+const aiLimiter = rateLimit({ windowMs: 60 * 1000, max: 30 });
 
 app.post('/api/ai', aiLimiter, async (req, res) => {
     const { model = 'default', input } = req.body || {};
@@ -310,7 +214,6 @@ app.post('/api/ai', aiLimiter, async (req, res) => {
         return res.status(400).json({ error: 'Missing or invalid `input` in request body' });
     }
 
-    // Simple input size guard
     if (input.length > 20000) {
         return res.status(413).json({ error: 'Input too large' });
     }
@@ -331,10 +234,8 @@ app.post('/api/ai', aiLimiter, async (req, res) => {
         const resp = await fetch(geminiUrl, { method: 'POST', headers, body: JSON.stringify(payload) });
         const text = await resp.text();
 
-        // Log the raw response text for debugging
         console.log('Raw Gemini API response:', text);
 
-        // Try parse JSON, otherwise return raw text
         try {
             const json = JSON.parse(text);
             return res.status(resp.status).json(json);
@@ -368,7 +269,6 @@ app.post('/test', async (req, res) => {
         child.on('close', (code) => {
             const success = code === 0;
             const data = { success, output, error };
-            // Save the result
             const resultId = Date.now().toString();
             results.push({ id: resultId, type: 'test', timestamp: new Date().toISOString(), data });
             saveResults();

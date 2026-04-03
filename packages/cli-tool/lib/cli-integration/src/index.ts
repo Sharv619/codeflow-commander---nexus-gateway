@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 
 /**
- * CLI Integration Service - Phase 4
+ * CLI Integration Service
  *
- * Bridges the local CLI commands with EKG backend services.
- * Transforms CLI operations from local processing to backend-driven workflows.
+ * Bridges CLI commands with local git operations.
+ * EKG backend integration (Phase 4) removed — not deployed.
  *
- * Key transformations:
- * - `codeflow index` → EKG Ingestion Service webhook simulation
- * - `codeflow analyze-diff` → EKG Query Service context-enhanced analysis
+ * Key operations:
+ * - `codeflow index` → Submit repository for indexing
+ * - `codeflow analyze-diff` → Local diff parsing only
  */
 
 import axios from 'axios';
@@ -235,9 +235,8 @@ export class CLIIntegrationService {
   }
 
   /**
-   * Analyze code diff with EKG context enhancement
-   *
-   * Sends diff to Query Service for EKG-enhanced analysis instead of local RAG
+   * Analyze code diff — simplified to local diff parsing only.
+   * EKG backend integration removed (Phase 4 not deployed).
    */
   async analyzeDiff(diffContent: string, options: {
     legacy?: boolean;
@@ -263,22 +262,12 @@ export class CLIIntegrationService {
         };
       }
 
-      if (options.legacy) {
-        // Fallback to local analysis (would integrate with existing agents)
-        logger.warn('Legacy mode requested - falling back to local analysis');
-        return {
-          success: false,
-          analysis: null,
-          message: 'Legacy mode not yet implemented with EKG integration'
-        };
-      }
-
-      logger.info('Analyzing diff with EKG context enhancement', {
+      logger.info('Analyzing diff (local only — EKG backend not deployed)', {
         diffSize: diffContent.length,
         lines: diffContent.split('\n').length
       });
 
-      // Analyze diff and extract context
+      // Parse diff content locally
       const diffAnalysis = this.analyzeDiffContent(diffContent);
 
       if (diffAnalysis.files.length === 0) {
@@ -289,28 +278,30 @@ export class CLIIntegrationService {
         };
       }
 
-      // Query EKG for context on affected files
-      const ekgContext = await this.getEKGContext(diffAnalysis);
-
-      // Generate enhanced analysis with EKG data
-      const enhancedAnalysis = await this.generateEKGEnhancedAnalysis(diffAnalysis, ekgContext);
-
       const analysisTime = Date.now() - startTime;
 
-      logger.info('Diff analysis completed with EKG enhancement', {
+      logger.info('Diff analysis completed', {
         affectedFiles: diffAnalysis.files.length,
-        ekgQueries: ekgContext.queriesMade,
-        similarReposFound: ekgContext.similarRepositories?.length || 0,
         analysisTime
       });
 
       return {
         success: true,
-        analysis: enhancedAnalysis,
-        message: 'Diff analyzed with EKG context enhancement',
+        analysis: {
+          summary: {
+            totalFiles: diffAnalysis.files.length,
+            totalAdditions: diffAnalysis.totalAdditions,
+            totalDeletions: diffAnalysis.totalDeletions,
+            ekgEnhanced: false
+          },
+          files: diffAnalysis.files,
+          issues: [],
+          recommendations: []
+        },
+        message: 'Diff analyzed (local analysis only)',
         stats: {
-          ekg_queries: ekgContext.queriesMade,
-          similar_repos_found: ekgContext.similarRepositories?.length || 0,
+          ekg_queries: 0,
+          similar_repos_found: 0,
           analysis_time: analysisTime
         }
       };
@@ -407,178 +398,6 @@ export class CLIIntegrationService {
       totalAdditions,
       totalDeletions,
       summary
-    };
-  }
-
-  /**
-   * Query EKG for context on affected files
-   */
-  private async getEKGContext(diffAnalysis: any): Promise<{
-    queriesMade: number;
-    repositoryIntelligence?: any;
-    similarRepositories: any[];
-    patterns: any[];
-  }> {
-    let queriesMade = 0;
-
-    try {
-      // Get current repository information
-      const repoInfo = await this.getRepositoryInfo();
-      const repositoryId = this.generateRepositoryId(repoInfo.fullName);
-
-      // Query repository intelligence if repository exists in EKG
-      let repositoryIntelligence = null;
-      try {
-        const response = await this.makeGraphQLRequest(
-          `
-          query GetRepositoryIntelligence($repoId: ID!) {
-            repositoryIntelligence(repositoryId: $repoId) {
-              repository {
-                id name fullName language
-              }
-              patterns {
-                name type confidence category
-              }
-              dependencies {
-                dependencyType currentVersion confidence
-              }
-            }
-          }
-          `,
-          { repoId: repositoryId }
-        );
-        repositoryIntelligence = response.data?.repositoryIntelligence;
-        queriesMade++;
-      } catch (error) {
-        logger.warn('Repository not found in EKG, continuing analysis', { repositoryId });
-      }
-
-      // Find similar repositories and patterns for context
-      let similarRepositories: any[] = [];
-      try {
-        const response = await this.makeGraphQLRequest(
-          `
-          query FindSimilarRepositories($repoId: ID!, $limit: Int) {
-            similarRepositories(repositoryId: $repoId, limit: $limit) {
-              repository { name fullName language }
-              similarityScore reasons
-              sharedPatterns sizeComparison
-            }
-          }
-          `,
-          { repoId: repositoryId, limit: 5 }
-        );
-        similarRepositories = response.data?.similarRepositories || [];
-        queriesMade++;
-      } catch (error) {
-        logger.warn('Could not fetch similar repositories', { error: this.formatError(error) });
-      }
-
-      // Get enterprise-wide patterns that might be relevant
-      let patterns: any[] = [];
-      try {
-        const languages = [...new Set(diffAnalysis.files.map((f: any) => f.language))];
-
-        const response = await this.makeGraphQLRequest(
-          `
-          query GetRelevantPatterns($language: String, $limit: Int) {
-            patterns(language: $language, minConfidence: 0.7, limit: $limit) {
-              name type category confidence observationCount
-            }
-          }
-          `,
-          { language: languages[0], limit: 10 }
-        );
-        patterns = response.data?.patterns || [];
-        queriesMade++;
-      } catch (error) {
-        logger.warn('Could not fetch patterns', { error: this.formatError(error) });
-      }
-
-      return {
-        queriesMade,
-        repositoryIntelligence,
-        similarRepositories,
-        patterns
-      };
-
-    } catch (error) {
-      logger.error('EKG context retrieval failed', { error: this.formatError(error) });
-      return {
-        queriesMade,
-        similarRepositories: [],
-        patterns: []
-      };
-    }
-  }
-
-  /**
-   * Generate enhanced analysis using EKG context
-   */
-  private async generateEKGEnhancedAnalysis(diffAnalysis: any, ekgContext: any): Promise<any> {
-    // Analyze changes with EKG context
-    const issues: any[] = [];
-    const recommendations: any[] = [];
-
-    // Check against existing patterns
-    if (ekgContext.patterns && ekgContext.patterns.length > 0) {
-      for (const file of diffAnalysis.files) {
-        const relevantPatterns = ekgContext.patterns.filter((p: any) =>
-          p.type === 'security' || p.type === 'architecture'
-        );
-
-        if (relevantPatterns.length > 0) {
-          recommendations.push({
-            type: 'ekg_pattern_alignment',
-            description: `File ${file.path} modified - consider these established patterns: ${relevantPatterns.map((p: any) => p.name).join(', ')}`,
-            severity: 'info',
-            file: file.path
-          });
-        }
-      }
-    }
-
-    // Compare against similar repositories
-    if (ekgContext.similarRepositories && ekgContext.similarRepositories.length > 0) {
-      const similarRepoNames = ekgContext.similarRepositories.map((sr: any) => sr.repository.fullName);
-      recommendations.push({
-        type: 'similar_repositories',
-        description: `Changes similar to patterns seen in: ${similarRepoNames.slice(0, 3).join(', ')}`,
-        severity: 'info'
-      });
-    }
-
-    // Add repository-specific context if available
-    if (ekgContext.repositoryIntelligence) {
-      const repo = ekgContext.repositoryIntelligence.repository;
-      issues.push({
-        type: 'repository_context',
-        description: `Analyzing changes in repository ${repo.fullName} (${repo.language})`,
-        severity: 'info'
-      });
-    }
-
-    return {
-      summary: {
-        totalFiles: diffAnalysis.files.length,
-        totalAdditions: diffAnalysis.totalAdditions,
-        totalDeletions: diffAnalysis.totalDeletions,
-        ekgEnhanced: true
-      },
-      files: diffAnalysis.files.map((file: any) => ({
-        path: file.path,
-        language: file.language,
-        additions: file.additions,
-        deletions: file.deletions,
-        isNew: file.isNew
-      })),
-      issues,
-      recommendations,
-      ekg_context: {
-        patterns_analyzed: ekgContext.patterns?.length || 0,
-        similar_repositories_found: ekgContext.similarRepositories?.length || 0,
-        repository_known: !!ekgContext.repositoryIntelligence
-      }
     };
   }
 
@@ -780,18 +599,7 @@ export class CLIIntegrationService {
   }
 
   /**
-   * Make GraphQL request to Query Service
-   */
-  private async makeGraphQLRequest(query: string, variables: any = {}): Promise<any> {
-    return this.makeBackendRequest(
-      `${this.config.queryServiceUrl}/graphql`,
-      { query, variables },
-      { 'Content-Type': 'application/json' }
-    );
-  }
-
-  /**
-   * Generate repository ID (similar to ingestion service)
+   * Generate repository ID
    */
   private generateRepositoryId(fullName: string): string {
     return `${fullName.replace('/', '-')}-${Date.now().toString(36)}`;

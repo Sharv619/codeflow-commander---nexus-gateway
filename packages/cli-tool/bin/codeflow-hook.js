@@ -11,7 +11,7 @@ import readline from 'readline';
 import { orchestrateReview } from './agents.js';
 
 // Import CLI integration service
-import { indexProject, analyzeDiff } from '../lib/cli-integration/dist/index.js';
+import { indexProject } from '../lib/cli-integration/dist/index.js';
 
 // Export for use in agents module
 export { callAIProvider };
@@ -293,12 +293,13 @@ exit 0
     }
   });
 
-// Analyze diff with EKG Query Service context enhancement (Phase 4)
+// Analyze diff with AI review + heuristic fallback
 program
   .command('analyze-diff')
-  .description('Analyze git diff using EKG context enhancement')
+  .description('Analyze git diff with AI code review (Gemini API) and heuristic fallback')
   .argument('[diff]', 'Git diff content')
-  .option('--legacy', 'Use legacy analysis instead of EKG-enhanced analysis')
+  .option('--min-score <score>', 'Minimum score to pass (1-10, default: 3)', '3')
+  .option('--json', 'Output results as JSON only')
   .action(async (diff, options) => {
     try {
       // Read diff content from stdin or argument
@@ -316,24 +317,42 @@ program
         return;
       }
 
-      console.log(chalk.blue('🔬 Analyzing diff with EKG context enhancement...'));
+      // Guard against huge diffs
+      if (diffContent.length > 20000) {
+        console.log(chalk.yellow('⚠️  Diff too large for AI review (>20KB), using heuristic'));
+      }
 
-      const result = await analyzeDiff(diffContent, {
-        legacy: options.legacy || false,
-        outputFormat: 'console'
-      });
+      const minScore = parseInt(options.minScore, 10);
+      const { reviewDiff } = await import('../lib/ai-reviewer.js');
 
-      if (result.success) {
-        console.log(chalk.green(`✅ ${result.message}`));
-        displayEKGAnalysisResults(result.analysis);
+      const result = await reviewDiff(diffContent, { minScore });
 
-        if (result.stats) {
-          console.log(chalk.gray(`📊 EKG Queries: ${result.stats.ekg_queries}`));
-          console.log(chalk.gray(`👥 Similar Repos Found: ${result.stats.similar_repos_found}`));
-          console.log(chalk.gray(`⏱️  Analysis Time: ${result.stats.analysis_time}ms`));
-        }
+      if (options.json) {
+        console.log(JSON.stringify(result, null, 2));
       } else {
-        console.log(chalk.red(`❌ Analysis failed: ${result.message}`));
+        const icon = result.success ? '✅' : '❌';
+        const color = result.success ? chalk.green : chalk.red;
+        console.log(color(`${icon} ${result.message}`));
+
+        if (result.result.score) {
+          console.log(chalk.blue(`📊 Score: ${result.result.score}/10 (threshold: ${minScore}/10)`));
+        }
+        if (result.result.summary) {
+          console.log(chalk.gray(`📝 ${result.result.summary}`));
+        }
+        if (result.result.files && result.result.files.length > 0) {
+          for (const file of result.result.files) {
+            if (file.issues && file.issues.length > 0) {
+              console.log(chalk.yellow(`\n📁 ${file.fileName}:`));
+              for (const issue of file.issues) {
+                console.log(chalk.red(`   - [${issue.type}] ${issue.description}`));
+              }
+            }
+          }
+        }
+      }
+
+      if (!result.success) {
         process.exit(1);
       }
 
