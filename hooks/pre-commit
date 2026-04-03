@@ -33,16 +33,24 @@ if [ -n "$STAGED_DIFF" ]; then
   DIFF_SIZE=${#STAGED_DIFF}
   if [ "$DIFF_SIZE" -gt 20000 ]; then
     echo "⚠️  Stage 3/3: Diff too large for AI review (${DIFF_SIZE} bytes > 20KB), using heuristic only"
-    # Still run heuristic analysis
-    echo "$STAGED_DIFF" | npx codeflow-hook analyze-diff --min-score 3 --json 2>/dev/null | node -e "
-      const data = JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf8'));
-      if (data.success) {
-        console.log('✅ Heuristic review passed — ' + data.message);
-      } else {
-        console.log('❌ Heuristic review failed — ' + data.message);
-        process.exit(1);
-      }
-    " || exit 1
+    # Run heuristic analysis directly (bypasses CLI tool to avoid log output issues)
+    RESULT=$(echo "$STAGED_DIFF" | node -e "
+      const { analyzeCode } = require('./server/analyzer.js');
+      const { readFileSync } = require('fs');
+      const diff = readFileSync('/dev/stdin', 'utf8');
+      const result = analyzeCode(diff);
+      const score = result.files.reduce((min, f) => Math.min(min, f.score), 10);
+      console.log(JSON.stringify({ success: result.overallStatus === 'PASS' && score >= 3, score, status: result.overallStatus, message: result.summary }));
+    " 2>/dev/null)
+    SUCCESS=$(echo "$RESULT" | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(d.success)")
+    if [ "$SUCCESS" = "true" ]; then
+      SCORE=$(echo "$RESULT" | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(d.score)")
+      echo "✅ Heuristic review passed — score ${SCORE}/10"
+    else
+      SCORE=$(echo "$RESULT" | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(d.score)")
+      echo "❌ Heuristic review failed — score ${SCORE}/10"
+      exit 1
+    fi
   else
     echo "🤖 Stage 3/3: AI Code Review..."
     echo "$STAGED_DIFF" | npx codeflow-hook analyze-diff --min-score 3 || exit 1

@@ -12,10 +12,32 @@ function analyzeCode(diffText) {
   const files = [];
   const lines = (diffText || '').split(/\r?\n/).slice(0, 500);
 
+  // File extensions to analyze — skip documentation, config, and binary files
+  const codeExtensions = new Set([
+    '.js', '.ts', '.tsx', '.jsx', '.mjs', '.cjs',
+    '.py', '.rb', '.go', '.rs', '.java', '.kt', '.scala',
+    '.cpp', '.c', '.h', '.cs', '.php', '.swift',
+    '.sh', '.bash', '.zsh', '.ps1',
+    '.yml', '.yaml', '.json', '.toml', '.ini', '.cfg',
+    '.html', '.css', '.scss', '.sass', '.less',
+    '.sql', '.graphql', '.proto',
+  ]);
+
+  function isCodeFile(filePath) {
+    const ext = filePath.includes('.') ? '.' + filePath.split('.').pop() : '';
+    return codeExtensions.has(ext);
+  }
+
   for (let i = 0; i < lines.length; i++) {
     const l = lines[i];
     if (l.startsWith('+++ b/')) {
       const fileName = l.replace('+++ b/', '').trim();
+
+      // Skip non-code files (markdown, docs, images, etc.)
+      if (!isCodeFile(fileName)) {
+        continue;
+      }
+
       const fileIssues = [];
       const suggestions = [];
       let score = 10;

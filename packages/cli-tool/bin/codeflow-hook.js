@@ -323,7 +323,7 @@ program
       }
 
       const minScore = parseInt(options.minScore, 10);
-      const { reviewDiff } = await import('../lib/ai-reviewer.js');
+      const { reviewDiff } = await import('../lib/ai-reviewer.cjs');
 
       const result = await reviewDiff(diffContent, { minScore });
 
