@@ -1,30 +1,8 @@
 import { ApolloClient, InMemoryCache, ApolloLink } from '@apollo/client';
 import { Observable } from '@apollo/client/utilities';
 
-// Mock data for when GraphQL server is not available
-const mockResolvers = {
-  Query: {
-    repositoryIntelligence: () => ({
-      repository: { id: 'repo-1', name: 'codeflow-commander', language: 'TypeScript' },
-      healthMetrics: { techDebt: 23, testCoverage: 87, securityScore: 85 }
-    }),
-    graphStatistics: () => ({
-      repositoryCount: 42,
-      teamCount: 8,
-      patternCount: 156
-    }),
-    agentAnalyses: () => ([
-      { id: 'analysis-1', agentId: 'security-agent', status: 'COMPLETED', findings: [{ message: 'No security issues found' }] }
-    ])
-  },
-  Mutation: {
-    submitAgentFeedback: () => ({ success: true }),
-    updateAgentConfiguration: () => ({ success: true })
-  }
-};
-
 // Use mock link when GraphQL server is not available
-const mockLink = new ApolloLink((operation, forward) => {
+const mockLink = new ApolloLink((operation, _forward) => {
   return new Observable(observer => {
     console.log(`[MOCK] GraphQL operation: ${operation.operationName}`);
 

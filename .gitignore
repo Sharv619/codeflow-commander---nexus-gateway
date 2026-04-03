@@ -1,73 +1,99 @@
-# Logs
-logs
-*.log
+# Environment
+.env
+.env.local
+.env.*.local
+.env.*.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+ENV/
+env/
+
+# Node
+node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+.next/
+out/
 
-# Node.js
-node_modules
-dist
-dist-ssr
-*.local
-
-# Python virtual environments
-venv/
-env/
-.venv/
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Editor directories and files
+# IDE
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json.example
 !.vscode/launch.json.example
 !.vscode/tasks.json.example
-.idea
+.idea/
+*.swp
+*.swo
+*~
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+.factorypath
+
+# OS
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+.AppleDouble
+.LSOverride
+._*
+Thumbs.db
+Desktop.ini
+.fseventsd
+.Spotlight-V100
+.Trashes
+$RECYCLE.BIN/
 
-# Environment files
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-.env.staging
+# Database
+*.db
+*.sqlite
+*.sqlite3
 
-# Test files
-simple-test.js
-test-validation.js
-isolation-test.js
-test-graphql-server.js
-test-csp-injection.sh
-smoke-test.js
-*.test.js
-*.test.ts
-*.spec.js
-*.spec.ts
+# Logs
+*.log
+logs/
 
-# Build outputs
+# Build
+frontend/dist/
+backend/static/
 build/
-out/
 dist/
+dist-ssr/
 coverage/
 .nyc_output/
 .parcel-cache/
 
-# Cache directories
+# Cache
 .cache/
 .eslintcache
 .stylelintcache
@@ -77,8 +103,39 @@ coverage/
 tmp_*
 *.tmp
 *.temp
-*.swp
-*.swo
+*.bak
+*.backup
+*.orig
+
+# Security
+*.key
+*.pem
+*.crt
+secrets/
+credentials.json
+service-account.json
+.fortress
+.fortress.env
+
+# Docker
+docker-compose.override.yml
+.dockerignore
+
+# Windows
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+ehthumbs.db
+[Dd]esktop.ini
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# Linux
 *~
 
 # Generated files
@@ -89,95 +146,20 @@ types.ts
 pipelineConfigs.ts
 simulationEngine.ts
 
-# Documentation files that shouldn't be committed
+# Old documentation
 2025-11-01_agent_changes.md
 2025-11-01_full_stack_integration.md
 cli-tool-security-updates.md
 linkedin-post.md
 security-audit-report.md
 todo_list.md
+PHASE3_*.md
+docs/archive/*.md
 
-# OS files
-Thumbs.db
-.DS_Store
-.fseventsd
-.Spotlight-V100
-.Trashes
-
-# Docker files
-*.log
-*.log.*
-docker-compose.override.yml
-.dockerignore
-
-# VS Code settings that shouldn't be committed
-.vscode/settings.json
-.vscode/launch.json
-.vscode/tasks.json
-
-# CLI tool configuration
+# CLI tool config
 ~/.codeflow-hook/
 ~/.codeflow-hook/config.json
 
-# Security files
-*.key
-*.pem
-*.crt
-secrets/
-credentials.json
-service-account.json
-
-# Fortress
-.fortress.env
-.fortress/
-
-# IDE files
-*.iml
-*.ipr
-*.iws
-.project
-.classpath
-.settings/
-.factorypath
-
-# Backup files
-*.bak
-*.backup
-*.orig
-
-# OS X specific
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Windows specific
-[Dd]esktop.ini
-$RECYCLE.BIN/
-*.cab
-*.msi
-*.msix
-*.msm
-*.msp
-*.lnk
-
-# Linux specific
-*~
-.fuse_hidden*
-.directory
-.Trash-*
-.nfs*
-PHASE3_CHALLENGES_MITIGATIONS.md
-PHASE3_CLI_WORKFLOWS.md
-PHASE3_DATA_MODEL.md
-backend/.env.example
-cli-tool/.env.example
-docs/archive/PHASE3_AGENT_EVOLUTION.md
-docs/archive/PHASE3_ARCHITECTURE.md
-docs/archive/PHASE4_ARCHITECTURE.md
-docs/archive/PHASE4_CHALLENGES_MITIGATIONS.md
-docs/archive/PHASE4_COMPONENT_EVOLUTION.md
-docs/archive/PHASE4_DATA_FLOW_INTEGRATION.md
-docs/archive/PHASE4_DATA_MODELS.md
-.gitignore
+# Package lock (optional - remove if you want to commit it)
+# package-lock.json
+# yarn.lock
