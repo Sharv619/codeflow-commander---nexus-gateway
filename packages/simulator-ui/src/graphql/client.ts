@@ -1,100 +1,43 @@
-import { ApolloClient, InMemoryCache, ApolloLink } from '@apollo/client';
-import { Observable } from '@apollo/client/utilities';
+import { ApolloClient, InMemoryCache, createHttpLink, ApolloLink } from '@apollo/client';
+import { onError } from '@apollo/client/link/error';
 
-// Use mock link when GraphQL server is not available
-const mockLink = new ApolloLink((operation, _forward) => {
-  return new Observable(observer => {
-    console.log(`[MOCK] GraphQL operation: ${operation.operationName}`);
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
 
-    // Simulate network delay
-    setTimeout(() => {
-      try {
-        // Simple mock responses based on operation name
-        let mockData;
-        switch (operation.operationName) {
-          case 'GetRepositoryIntelligence':
-            mockData = {
-              repositoryIntelligence: {
-                repository: { id: 'repo-1', name: 'codeflow-commander', language: 'TypeScript' },
-                healthMetrics: { techDebt: 23, testCoverage: 87, securityScore: 85 }
-              }
-            };
-            break;
-          case 'GetGraphStatistics':
-            mockData = {
-              graphStatistics: {
-                repositoryCount: 42,
-                teamCount: 8,
-                patternCount: 156
-              }
-            };
-            break;
-          case 'GetAgentAnalyses':
-            mockData = {
-              agentAnalyses: [{
-                id: 'analysis-1',
-                agentId: 'security-agent',
-                status: 'COMPLETED',
-                findings: [{ message: 'No security issues found' }]
-              }]
-            };
-            break;
-          case 'SubmitAgentFeedback':
-          case 'UpdateAgentConfiguration':
-            mockData = { success: true };
-            break;
-          default:
-            mockData = {};
-        }
-
-        observer.next({ data: mockData });
-        observer.complete();
-      } catch (error) {
-        observer.error(error);
-      }
-    }, 100); // 100ms delay to simulate network
-  });
+const httpLink = createHttpLink({
+  uri: `${BACKEND_URL}/graphql`,
 });
 
-// Apollo Client instance
+const errorLink = onError(({ graphQLErrors, networkError, operation }) => {
+  if (graphQLErrors) {
+    graphQLErrors.forEach(({ message, locations, path }) =>
+      console.error(
+        `[GraphQL error] Message: ${message}, Location: ${locations}, Path: ${path}`,
+      ),
+    );
+  }
+  if (networkError) {
+    console.error(`[Network error] ${networkError.message} — backend may not be running`);
+  }
+  console.warn(`[Apollo] Operation ${operation.operationName} failed — falling back to local state`);
+});
+
 export const client = new ApolloClient({
-  link: mockLink,
+  link: ApolloLink.from([errorLink, httpLink]),
   cache: new InMemoryCache({
     typePolicies: {
       Query: {
         fields: {
-          // Custom cache policies for real-time updates
-          agentAnalyses: {
-            merge(existing, incoming) {
-              return incoming;
-            },
-          },
-          repositoryIntelligence: {
-            merge(existing, incoming) {
-              return incoming;
-            },
-          },
-          graphStatistics: {
-            merge(existing, incoming) {
-              return incoming;
-            },
-          },
+          agentAnalyses: { merge(_, incoming) { return incoming; } },
+          repositoryIntelligence: { merge(_, incoming) { return incoming; } },
+          graphStatistics: { merge(_, incoming) { return incoming; } },
         },
       },
     },
   }),
   defaultOptions: {
-    watchQuery: {
-      fetchPolicy: 'cache-and-network',
-      errorPolicy: 'all',
-    },
-    query: {
-      fetchPolicy: 'network-only',
-      errorPolicy: 'all',
-    },
-    mutate: {
-      errorPolicy: 'all',
-    },
+    watchQuery: { fetchPolicy: 'cache-and-network', errorPolicy: 'all' },
+    query: { fetchPolicy: 'network-only', errorPolicy: 'all' },
+    mutate: { errorPolicy: 'all' },
   },
 });
 

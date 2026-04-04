@@ -16,7 +16,8 @@ export enum DashboardView {
   AgentReview = 'agent_review',
   MyCodeflow = 'my_codeflow',
   AgentConfig = 'agent_config',
-  PipelineSandbox = 'pipeline_sandbox'
+  PipelineSandbox = 'pipeline_sandbox',
+  ResultsHistory = 'results_history'
 }
 
 export enum AgentType {

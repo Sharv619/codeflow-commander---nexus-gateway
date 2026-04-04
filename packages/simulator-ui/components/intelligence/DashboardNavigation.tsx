@@ -69,6 +69,14 @@ const DashboardNavigation: React.FC<DashboardNavigationProps> = ({
       description: 'CI/CD simulator',
       roles: [UserRole.Developer, UserRole.TeamLead, UserRole.Architect, UserRole.Admin],
       badge: null
+    },
+    {
+      id: DashboardView.ResultsHistory,
+      label: 'Results History',
+      icon: '📋',
+      description: 'Analysis results & trends',
+      roles: [UserRole.Developer, UserRole.TeamLead, UserRole.Architect, UserRole.Admin],
+      badge: null
     }
   ];
 

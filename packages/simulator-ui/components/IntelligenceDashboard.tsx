@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useSubscription } from '@apollo/client';
-import { UserRole, DashboardView, Repository, AgentSuggestion, EKGNode, EKGEdge, EKGData } from '../types/intelligence';
+import { UserRole, DashboardView, Repository, AgentSuggestion, EKGData, HealthStatus, AgentType, Severity, SuggestionStatus } from '../types/intelligence';
 import { AGENT_STATUS_UPDATE_SUBSCRIPTION } from '../src/graphql';
+import { restDataProvider, ResultEntry, TrendData, AnalysisResult } from '../src/services/RestDataProvider';
 import GlobalEKGExplorer from './intelligence/GlobalEKGExplorer.tsx';
 import RepositoryHealthDashboard from './intelligence/RepositoryHealthDashboard.tsx';
 import AgentReviewCenter from './intelligence/AgentReviewCenter.tsx';
@@ -10,18 +11,9 @@ import AgentConfigurationPanel from './intelligence/AgentConfigurationPanel';
 import PipelineSandbox from './intelligence/PipelineSandbox.tsx';
 import DashboardNavigation from './intelligence/DashboardNavigation';
 import UserProfileSelector from './intelligence/UserProfileSelector.tsx';
+import ResultsHistory from './ResultsHistory';
 
-/**
- * Codeflow Intelligence Dashboard - Project Phoenix
- *
- * The primary window into the platform's brain, providing role-based access to:
- * - Enterprise Knowledge Graph (EKG) visualization
- * - Autonomous Agent Network (AAN) control and monitoring
- * - Repository health metrics and insights
- * - Agent-generated suggestions and code patches
- */
 const IntelligenceDashboard: React.FC = () => {
-  // User context and role management
   const [currentUser, setCurrentUser] = useState<{
     id: string;
     name: string;
@@ -37,149 +29,149 @@ const IntelligenceDashboard: React.FC = () => {
   const [selectedRepository, setSelectedRepository] = useState<Repository | null>(null);
   const [agentStatuses, setAgentStatuses] = useState<any[]>([]);
 
-  // Mock data - in real implementation, this would come from API calls
-  const [repositories] = useState<Repository[]>([
-    {
-      id: 'repo-1',
-      name: 'codeflow-commander',
-      fullName: 'org/codeflow-commander',
-      description: 'Main platform repository',
-      language: 'TypeScript',
-      stars: 45,
-      forks: 12,
-      lastCommit: new Date('2025-01-15'),
-      health: {
-        techDebtScore: 23,
-        securityPosture: 'good',
-        testCoverage: 87,
-        codeComplexity: 2.1,
-        vulnerabilityCount: 0
-      },
-      agentActivity: {
-        suggestionsCount: 12,
-        acceptedSuggestions: 8,
-        pendingReviews: 4
-      }
-    },
-    {
-      id: 'repo-2',
-      name: 'auth-service',
-      fullName: 'org/auth-service',
-      description: 'Authentication microservice',
-      language: 'Go',
-      stars: 23,
-      forks: 8,
-      lastCommit: new Date('2025-01-14'),
-      health: {
-        techDebtScore: 45,
-        securityPosture: 'warning',
-        testCoverage: 92,
-        codeComplexity: 1.8,
-        vulnerabilityCount: 2
-      },
-      agentActivity: {
-        suggestionsCount: 25,
-        acceptedSuggestions: 18,
-        pendingReviews: 7
-      }
-    }
-  ]);
+  const [results, setResults] = useState<ResultEntry[]>([]);
+  const [trends, setTrends] = useState<TrendData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const [agentSuggestions] = useState<AgentSuggestion[]>([
-    {
-      id: 'suggestion-1',
-      repositoryId: 'repo-1',
-      agentType: 'security',
-      title: 'Fix SQL injection vulnerability',
-      description: 'Replace string concatenation with parameterized queries',
-      severity: 'high',
-      confidence: 0.92,
-      status: 'pending',
-      createdAt: new Date('2025-01-15T10:30:00Z'),
-      codePatch: {
-        file: 'src/database/userQueries.js',
-        lineStart: 45,
-        lineEnd: 52,
-        originalCode: 'const query = `SELECT * FROM users WHERE email = \'${email}\'`;',
-        suggestedCode: 'const query = \'SELECT * FROM users WHERE email = $1\';\nconst values = [email];'
-      },
-      reasoning: 'Direct string interpolation in SQL queries creates injection vulnerabilities. Parameterized queries prevent malicious input from altering query logic.',
-      validationResults: {
-        testsPass: true,
-        securityScanPass: true,
-        performanceImpact: 'neutral'
-      }
-    },
-    {
-      id: 'suggestion-2',
-      repositoryId: 'repo-1',
-      agentType: 'architecture',
-      title: 'Extract authentication logic to separate module',
-      description: 'Move auth validation to authUtils.js for better separation of concerns',
-      severity: 'medium',
-      confidence: 0.78,
-      status: 'pending',
-      createdAt: new Date('2025-01-14T16:45:00Z'),
-      codePatch: {
-        file: 'src/routes/userRoutes.js',
-        lineStart: 12,
-        lineEnd: 28,
-        originalCode: '// Authentication logic here...',
-        suggestedCode: 'const { validateToken } = require(\'../utils/authUtils\');'
-      },
-      reasoning: 'Authentication logic is duplicated across multiple route handlers. Extracting to a utility module improves maintainability and reduces code duplication.',
-      validationResults: {
-        testsPass: true,
-        securityScanPass: true,
-        performanceImpact: 'positive'
-      }
-    }
-  ]);
+  useEffect(() => {
+    let cancelled = false;
 
-  const [ekgData] = useState<EKGData>({
-    nodes: [
-      {
-        id: 'repo-1',
-        type: 'repository',
-        label: 'codeflow-commander',
-        data: { language: 'TypeScript', team: 'platform', health: 'good' }
-      },
-      {
-        id: 'repo-2',
-        type: 'repository',
-        label: 'auth-service',
-        data: { language: 'Go', team: 'backend', health: 'warning' }
-      },
-      {
-        id: 'lib-auth',
-        type: 'library',
-        label: 'auth-lib',
-        data: { version: '2.1.0', vulnerabilities: 1 }
+    async function loadData() {
+      try {
+        setLoading(true);
+        setError(null);
+        const [resultsData, trendsData] = await Promise.all([
+          restDataProvider.fetchResults(),
+          restDataProvider.fetchTrends(),
+        ]);
+        if (!cancelled) {
+          setResults(resultsData);
+          setTrends(trendsData);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : String(err));
+          setResults([]);
+          setTrends(null);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-    ],
-    edges: [
-      {
-        id: 'dep-1',
-        source: 'repo-1',
-        target: 'lib-auth',
-        type: 'depends_on',
-        data: { version: '^2.0.0' }
-      },
-      {
-        id: 'dep-2',
-        source: 'repo-2',
-        target: 'lib-auth',
-        type: 'depends_on',
-        data: { version: '^2.1.0' }
-      }
-    ],
-    metadata: {
-      lastUpdated: new Date(),
-      nodeCount: 3,
-      edgeCount: 2,
-      coverage: 85
     }
-  });
+
+    loadData();
+    return () => { cancelled = true; };
+  }, []);
+
+  const deriveRepositories = (): Repository[] => {
+    const seen = new Map<string, Repository>();
+    for (const r of results) {
+      if (r.type === 'analyze' || r.type === 'git-hook-analyze') {
+        const data = r.data as AnalysisResult;
+        for (const f of data.files) {
+          const name = f.fileName.split('/').pop() || f.fileName;
+          if (!seen.has(name)) {
+            const hasSecurityIssues = f.issues.some(i => i.type === 'Security');
+            seen.set(name, {
+              id: `repo-${name}`,
+              name,
+              fullName: f.fileName,
+              description: `Analyzed file: ${f.fileName}`,
+              language: f.fileName.split('.').pop() || 'unknown',
+              stars: 0,
+              forks: 0,
+              lastCommit: new Date(r.timestamp),
+              health: {
+                techDebtScore: Math.max(0, 100 - (f.score * 10)),
+                securityPosture: hasSecurityIssues ? HealthStatus.Warning : HealthStatus.Good,
+                testCoverage: 0,
+                codeComplexity: 0,
+                vulnerabilityCount: f.issues.filter(i => i.type === 'Security').length,
+                maintainabilityIndex: f.score * 10,
+                duplicationPercentage: 0,
+                lastHealthCheck: new Date(r.timestamp),
+              },
+              agentActivity: {
+                suggestionsCount: f.issues.length,
+                acceptedSuggestions: 0,
+                pendingReviews: f.issues.length,
+                rejectedSuggestions: 0,
+                autoAppliedCount: 0,
+                lastActivity: new Date(r.timestamp),
+              },
+              dependencies: [],
+            });
+          }
+        }
+      }
+    }
+    return Array.from(seen.values());
+  };
+
+  const deriveSuggestions = (): AgentSuggestion[] => {
+    const suggestions: AgentSuggestion[] = [];
+    for (const r of results) {
+      if (r.type === 'analyze' || r.type === 'git-hook-analyze') {
+        const data = r.data as AnalysisResult;
+        for (const f of data.files) {
+          for (const issue of f.issues) {
+            suggestions.push({
+              id: `${r.id}-${issue.line}-${issue.type}`,
+              repositoryId: 'repo-1',
+              agentType: issue.type === 'Security' ? AgentType.Security : AgentType.CodeQuality,
+              title: `${issue.type}: ${issue.description}`,
+              description: issue.description,
+              severity: issue.type === 'Security' ? Severity.High : Severity.Medium,
+              confidence: 0.8,
+              status: SuggestionStatus.Pending,
+              createdAt: new Date(r.timestamp),
+              codePatch: {
+                file: f.fileName,
+                lineStart: issue.line,
+                lineEnd: issue.line,
+                originalCode: '',
+                suggestedCode: '',
+                language: f.fileName.split('.').pop() || 'unknown',
+              },
+              reasoning: issue.description,
+              validationResults: {
+                testsPass: true,
+                securityScanPass: issue.type !== 'Security',
+                performanceImpact: 'neutral',
+                breakingChanges: false,
+              },
+              tags: [],
+            });
+          }
+        }
+      }
+    }
+    return suggestions;
+  };
+
+  const deriveEKGData = (): EKGData => {
+    const repos = deriveRepositories();
+    return {
+      nodes: repos.map(r => ({
+        id: r.id,
+        type: 'repository' as const,
+        label: r.name,
+        data: { language: r.language, health: r.health.securityPosture },
+      })),
+      edges: [],
+      metadata: {
+        lastUpdated: new Date(),
+        nodeCount: repos.length,
+        edgeCount: 0,
+        coverage: repos.length > 0 ? 85 : 0,
+      },
+    };
+  };
+
+  const repositories = deriveRepositories();
+  const agentSuggestions = deriveSuggestions();
+  const ekgData = deriveEKGData();
 
   // Auto-select appropriate view based on user role
   useEffect(() => {
@@ -265,6 +257,10 @@ const IntelligenceDashboard: React.FC = () => {
               currentUser.role === UserRole.Developer
             )}
             repositories={repositories}
+            results={results}
+            trends={trends}
+            loading={loading}
+            error={error}
           />
         );
 
@@ -278,6 +274,9 @@ const IntelligenceDashboard: React.FC = () => {
 
       case DashboardView.PipelineSandbox:
         return <PipelineSandbox />;
+
+      case DashboardView.ResultsHistory:
+        return <ResultsHistory />;
 
       default:
         return (
