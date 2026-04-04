@@ -9,6 +9,7 @@ import { StorageManager } from '../storage';
 import { RAGService } from '../services/rag';
 import { PRISMService } from '../services/prism';
 import { PatchEngine } from '../services/patch-engine';
+import { createHash } from 'crypto';
 import {
   CodeSuggestion,
   DeveloperFeedback,
@@ -142,9 +143,12 @@ export abstract class GenerativeAgent {
           generationTime: Date.now() - startTime,
           tokensUsed: rawResult.metadata?.tokensUsed || 0,
           processingSteps: enhancedResult.processingSteps || []
-        },
-        alternatives: rawResult.alternatives
+        }
       };
+
+      if (rawResult.alternatives && rawResult.alternatives.length > 0) {
+        finalResult.alternatives = rawResult.alternatives;
+      }
 
       // Update learning data
       if (safetyAssessment.approved) {
@@ -470,7 +474,6 @@ export abstract class GenerativeAgent {
       constraints: request.requirements.constraints
     });
 
-import { createHash } from 'crypto';
     return createHash('md5').update(contextString).digest('hex');
   }
 

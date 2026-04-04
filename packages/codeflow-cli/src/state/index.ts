@@ -11,6 +11,9 @@ import {
   DeveloperFeedback,
   CodeSuggestion
 } from '@/types/entities';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 
 /**
  * Global State - Cross-project and user-wide configuration and learning
@@ -236,9 +239,21 @@ export class StateManager {
    * Initialize global state from persisted configuration
    */
   private initializeGlobalState(): void {
-    // Implementation would load from ~/.codeflow-cli/config/global.json
-    // For now, provide default structure
-    this.globalState = this.createDefaultGlobalState();
+    const globalStatePath = path.join(os.homedir(), '.codeflow-cli', 'global', 'state.json');
+    if (fs.existsSync(globalStatePath)) {
+      try {
+        const saved = JSON.parse(fs.readFileSync(globalStatePath, 'utf8'));
+        this.globalState = { ...this.createDefaultGlobalState(), ...saved };
+        this.logger.debug('Global state loaded from disk', { path: globalStatePath });
+      } catch (error) {
+        this.logger.warn('Failed to load global state, using defaults', {
+          error: error instanceof Error ? error.message : String(error)
+        });
+        this.globalState = this.createDefaultGlobalState();
+      }
+    } else {
+      this.globalState = this.createDefaultGlobalState();
+    }
   }
 
   /**
@@ -599,24 +614,34 @@ export class StateManager {
   }
 
   /**
-   * Persist state to storage (stub implementation)
-   * In real implementation, would use file system or database
+   * Persist state to storage
+   * Global state → ~/.codeflow-cli/global/state.json
+   * Project state → .codeflow/state.json (project root)
+   * Session state → ephemeral (not persisted)
    */
   private async persistState(scope: string, data: any): Promise<void> {
-    // Implementation would save to appropriate storage location
-    // Global state -> ~/.codeflow-cli/global/state.json
-    // Project state -> .codeflow/state.json
-    // Session state -> temporary or database storage
-
-    // For now, just update timestamp
-    if (data.lastUpdated) {
-      data.lastUpdated = new Date();
+    try {
+      if (scope === 'global') {
+        const dir = path.join(os.homedir(), '.codeflow-cli', 'global');
+        fs.mkdirSync(dir, { recursive: true });
+        const filePath = path.join(dir, 'state.json');
+        const existing = fs.existsSync(filePath) ? JSON.parse(fs.readFileSync(filePath, 'utf8')) : {};
+        const merged = { ...existing, ...data, lastUpdated: new Date() };
+        fs.writeFileSync(filePath, JSON.stringify(merged, null, 2));
+      } else if (scope.startsWith('project_')) {
+        const dir = path.join(process.cwd(), '.codeflow', 'state');
+        fs.mkdirSync(dir, { recursive: true });
+        const filePath = path.join(dir, 'state.json');
+        const existing = fs.existsSync(filePath) ? JSON.parse(fs.readFileSync(filePath, 'utf8')) : {};
+        const merged = { ...existing, ...data, lastUpdated: new Date() };
+        fs.writeFileSync(filePath, JSON.stringify(merged, null, 2));
+      }
+      // Session state is ephemeral — not persisted to disk
+    } catch (error) {
+      this.logger.warn(`Failed to persist ${scope} state`, {
+        error: error instanceof Error ? error.message : String(error)
+      });
     }
-
-    // In production, would use:
-    // - SQLite for complex data
-    // - JSON files for configuration
-    // - Cache systems for hot data
   }
 
   /**

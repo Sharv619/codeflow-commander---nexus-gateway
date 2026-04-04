@@ -349,6 +349,7 @@ export class GovernanceSafetyFramework {
       // Execute workflow steps
       for (let i = 0; i < workflow.steps.length; i++) {
         const step = workflow.steps[i];
+        if (!step) continue;
         const stepResult = await this.executeApprovalStep(step, operation, result);
 
         result.step = i;
@@ -396,17 +397,22 @@ export class GovernanceSafetyFramework {
       const grantedPermission = this.calculateAppropriatePermission(requiredPermission, riskAssessment);
 
       // Create conditional permission
+      const expiresAt = durationMinutes ? new Date(Date.now() + durationMinutes * 60 * 1000) : undefined;
+
       const permission: DynamicPermission = {
         userId,
         resourceId,
         resourceType,
         permission: grantedPermission,
         grantedAt: new Date(),
-        expiresAt: durationMinutes ? new Date(Date.now() + durationMinutes * 60 * 1000) : undefined,
         conditions: this.generatePermissionConditions(context, riskAssessment),
         grantedBy: 'gsf_dynamic',
         context
       };
+
+      if (expiresAt) {
+        permission.expiresAt = expiresAt;
+      }
 
       // Store permission
       await this.storeDynamicPermission(permission);
@@ -487,7 +493,7 @@ export class GovernanceSafetyFramework {
         });
       }
 
-      this.logger.emergency('Emergency stop activated', { reason, hackerId });
+      this.logger.error('EMERGENCY STOP ACTIVATED', { reason, hackerId });
 
     } catch (error) {
       this.errorHandler.handleError(error, { operation: 'emergencyStop' });
@@ -602,13 +608,13 @@ export class GovernanceSafetyFramework {
   }
 
   private determineOverallStatus(evaluations: PolicyEvaluation[]): ApprovalStatus {
-    if (evaluations.some(eval => eval.status === ApprovalStatus.DENIED)) {
+    if (evaluations.some(e => e.status === ApprovalStatus.DENIED)) {
       return ApprovalStatus.DENIED;
     }
-    if (evaluations.some(eval => eval.status === ApprovalStatus.ESCALATED)) {
+    if (evaluations.some(e => e.status === ApprovalStatus.ESCALATED)) {
       return ApprovalStatus.ESCALATED;
     }
-    if (evaluations.every(eval => eval.status === ApprovalStatus.APPROVED)) {
+    if (evaluations.every(e => e.status === ApprovalStatus.APPROVED)) {
       return ApprovalStatus.APPROVED;
     }
     return ApprovalStatus.PENDING;
@@ -621,8 +627,8 @@ export class GovernanceSafetyFramework {
       recommendations.push('Manual review recommended for high-risk operation');
     }
 
-    evaluations.filter(eval => !eval.satisfied).forEach(eval => {
-      recommendations.push(`Policy violation: ${eval.policyName}`);
+    evaluations.filter(e => !e.satisfied).forEach(e => {
+      recommendations.push(`Policy violation: ${e.policyName}`);
     });
 
     return recommendations;

@@ -10,8 +10,7 @@ import { Logger, defaultLogger } from '@/utils/logger';
 import { ErrorHandler, ValidationPipeline } from '@/validation';
 import { ValidationResult } from '@/types/core';
 import {
-  CodeSuggestion,
-  CodeModification
+  CodeSuggestion
 } from '@/types/entities';
 
 export interface PatchResult {
@@ -183,7 +182,7 @@ export class PatchEngine {
 
       if (options.dryRun) {
         // Simulate application for testing
-        conflicts.push(...await this.simulateConflicts(patchData));
+        conflicts.push(...await this.simulateConflicts(patchContent));
       } else {
         // Apply the patch
         const applyConflicts = await this.applyUnifiedDiff(patchContent);
@@ -274,7 +273,7 @@ export class PatchEngine {
             errors.push(`Backup file missing: ${filePath}`);
           }
         } catch (error) {
-          errors.push(`Failed to restore ${filePath}: ${error.message}`);
+          errors.push(`Failed to restore ${filePath}: ${error instanceof Error ? error.message : String(error)}`);
         }
       }
 
@@ -373,7 +372,7 @@ export class PatchEngine {
     // 4. Syntax and logic validation
     const syntaxCheck = await this.validatePatchSyntax(patchData);
     if (!syntaxCheck.passed) {
-      validation.errors.push(...syntaxCheck.details.filter(d => d.includes('error') || d.includes('Error')));
+      validation.errors.push(...(syntaxCheck.details || []).filter(d => d.includes('error') || d.includes('Error')));
       validation.passed = false;
     }
 
@@ -471,7 +470,7 @@ ${suggestion.patch.content}`;
     for (const line of lines) {
       if (line.startsWith('diff --git')) {
         const match = line.match(/diff --git a\/(.+) b\/(.+)/);
-        if (match) {
+        if (match && match[1]) {
           filesAffected.push(match[1]);
         }
       }
@@ -486,24 +485,193 @@ ${suggestion.patch.content}`;
 
   // Additional private methods would implement the full functionality...
 
-  // Placeholder implementations for brevity
+  /**
+   * Create backup copies of files before applying patches
+   * Stores backups in .codeflow/backups/ with timestamp
+   */
   private async createBackupForFiles(files: string[]): Promise<string | null> {
-    // Implementation would create file backups
-    return `backup_${Date.now()}`;
+    if (files.length === 0) return null;
+
+    const backupId = `backup_${Date.now()}`;
+    const backupDir = path.join(process.cwd(), '.codeflow', 'backups', backupId);
+
+    try {
+      await fs.ensureDir(backupDir);
+
+      for (const filePath of files) {
+        const absolutePath = path.resolve(process.cwd(), filePath);
+        if (await fs.pathExists(absolutePath)) {
+          const backupPath = path.join(backupDir, filePath);
+          await fs.ensureDir(path.dirname(backupPath));
+          await fs.copy(absolutePath, backupPath);
+
+          const contentHash = await this.calculateFileHash(absolutePath);
+          const stats = await fs.stat(backupPath);
+
+          this.activeBackups.set(backupId, {
+            id: backupId,
+            originalFile: filePath,
+            backupPath: backupDir,
+            contentHash,
+            createdAt: new Date(),
+            size: stats.size
+          });
+        }
+      }
+
+      this.logger.debug(`Backup created: ${backupId} (${files.length} files)`);
+      return backupId;
+    } catch (error) {
+      this.logger.warn('Failed to create backup', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return null;
+    }
   }
 
-  private async simulateConflicts(patchData: any): Promise<ConflictDetail[]> {
-    // Would detect real conflicts
-    return [];
+  /**
+   * Simulate conflict detection without modifying files
+   * Checks if the patch would conflict with current file content
+   */
+  private async simulateConflicts(diffContent: string): Promise<ConflictDetail[]> {
+    const conflicts: ConflictDetail[] = [];
+
+    try {
+      const patches = diff.parsePatch(diffContent);
+
+      for (const patch of patches) {
+        if (!patch.oldFileName) continue;
+
+        const targetPath = patch.oldFileName.replace(/^a\//, '');
+        const absolutePath = path.resolve(process.cwd(), targetPath);
+
+        if (!await fs.pathExists(absolutePath)) {
+          if (patch.oldFileName !== '/dev/null') {
+            conflicts.push({
+              filePath: targetPath,
+              type: 'file-deleted',
+              description: `Source file does not exist: ${targetPath}`
+            });
+          }
+          continue;
+        }
+
+        const currentContent = await fs.readFile(absolutePath, 'utf-8');
+        const result = diff.applyPatch(currentContent, patch);
+
+        if (result === false) {
+          conflicts.push({
+            filePath: targetPath,
+            type: 'content-conflict',
+            description: `Patch cannot be applied to ${targetPath}: context mismatch or file modified`
+          });
+        }
+      }
+    } catch (error) {
+      conflicts.push({
+        filePath: 'unknown',
+        type: 'content-conflict',
+        description: `Failed to simulate patch: ${error instanceof Error ? error.message : String(error)}`
+      });
+    }
+
+    return conflicts;
   }
 
+  /**
+   * Apply a unified diff to actual files on disk
+   * Uses the `diff` library to parse and apply the patch
+   */
   private async applyUnifiedDiff(diffContent: string): Promise<ConflictDetail[]> {
-    // Would apply the actual diff
-    return [];
+    const conflicts: ConflictDetail[] = [];
+
+    try {
+      // Parse the unified diff to extract file patches
+      const patches = diff.parsePatch(diffContent);
+
+      for (const patch of patches) {
+        if (!patch.oldFileName || !patch.newFileName) continue;
+
+        // Determine the target file path
+        const targetPath = patch.newFileName !== '/dev/null'
+          ? patch.newFileName.replace(/^b\//, '')
+          : patch.oldFileName.replace(/^a\//, '');
+
+        const absolutePath = path.resolve(process.cwd(), targetPath);
+
+        // Read current file content (or empty if new file)
+        let currentContent = '';
+        if (await fs.pathExists(absolutePath)) {
+          currentContent = await fs.readFile(absolutePath, 'utf-8');
+        }
+
+        // Apply the patch using the diff library
+        let patchedContent: string | false;
+        try {
+          patchedContent = diff.applyPatch(currentContent, patch);
+        } catch (error) {
+          conflicts.push({
+            filePath: targetPath,
+            line: 0,
+            type: 'content-conflict',
+            description: `Failed to apply patch: ${error instanceof Error ? error.message : String(error)}`
+          });
+          continue;
+        }
+
+        if (patchedContent === false) {
+          conflicts.push({
+            filePath: targetPath,
+            line: 0,
+            type: 'content-conflict',
+            description: 'Patch cannot be applied cleanly — manual resolution required'
+          });
+          continue;
+        }
+
+        // Write the patched content to disk, or delete if file removal
+        await fs.ensureDir(path.dirname(absolutePath));
+
+        if (patch.newFileName === '/dev/null') {
+          // File deletion
+          if (await fs.pathExists(absolutePath)) {
+            await fs.remove(absolutePath);
+            this.logger.debug(`File deleted: ${targetPath}`);
+          }
+        } else {
+          await fs.writeFile(absolutePath, patchedContent, 'utf-8');
+          this.logger.debug(`Patch applied: ${targetPath}`);
+        }
+      }
+    } catch (error) {
+      this.logger.error('Failed to apply unified diff', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      conflicts.push({
+        filePath: 'unknown',
+        line: 0,
+        type: 'content-conflict',
+        description: `Failed to parse diff: ${error instanceof Error ? error.message : String(error)}`
+      });
+    }
+
+    return conflicts;
   }
 
   private async validatePatchSyntax(patchData: any): Promise<ValidationResult> {
     return { passed: true, score: 0.9, message: 'Syntax validation passed' };
+  }
+
+  private async validatePatchForApplication(
+    patchData: any,
+    level: 'strict' | 'normal' | 'relaxed' = 'normal'
+  ): Promise<ValidationResult> {
+    const passed = patchData?.filesAffected && patchData.filesAffected.length > 0;
+    return {
+      passed: !!passed,
+      score: passed ? 0.85 : 0,
+      message: passed ? 'Patch validation passed' : 'No files to patch'
+    };
   }
 
   private async validateFilePermissions(files: string[], projectPath: string, privileges: string): Promise<string[]> {
@@ -612,7 +780,7 @@ export class PatchCoordinator {
 
         const result = await this.patchEngine.applyPatch(patchContent, {
           sessionId: options.sessionId,
-          dryRun: options.dryRun,
+          dryRun: !!options.dryRun,
           backupEnabled: true
         });
 
@@ -627,7 +795,7 @@ export class PatchCoordinator {
 
       } catch (error) {
         failed++;
-        this.logger.error('Failed to apply patch in coordinated mode', { patchId, error: error.message });
+        this.logger.error('Failed to apply patch in coordinated mode', { patchId, error: error instanceof Error ? error.message : String(error) });
 
         if (!options.continueOnError) break;
       }
@@ -668,19 +836,3 @@ export class PatchCoordinator {
     return order;
   }
 }
-
-/**
- * Export interfaces and classes
- */
-export type {
-  PatchResult,
-  RollbackResult,
-  ConflictDetail,
-  PatchValidation,
-  SecurityIssue,
-  BackupInfo
-};
-
-export {
-  PatchCoordinator
-};

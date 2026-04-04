@@ -3,7 +3,7 @@
 // Provides Commander.js-based command orchestration with safety controls and user experience
 
 import { Command } from 'commander';
-import { Logger } from '@/utils/logger';
+import { Logger, defaultLogger } from '@/utils/logger';
 import { StateManager } from '@/state';
 import { StorageManager } from '@/storage';
 import { RAGService } from '@/services/rag';
@@ -96,7 +96,7 @@ export class CodeflowCLI {
       await this.performStartupChecks();
 
     } catch (error) {
-      this.logger.error('CLI execution failed', { error: error.message });
+      this.logger.error('CLI execution failed', { error: error instanceof Error ? error.message : String(error) });
       this.displayError(error);
       process.exit(1);
     }
@@ -667,20 +667,7 @@ export class CodeflowCLI {
    */
 
   private createLogger(): Logger {
-    return {
-      debug: (message: string, data?: any) => {
-        if (this.context.verbose) console.log(`🐛 ${message}`, data || '');
-      },
-      info: (message: string, data?: any) => {
-        console.log(`ℹ️  ${message}`, data || '');
-      },
-      warn: (message: string, data?: any) => {
-        console.warn(`⚠️  ${message}`, data || '');
-      },
-      error: (message: string, data?: any) => {
-        console.error(`❌ ${message}`, error || '');
-      }
-    };
+    return defaultLogger;
   }
 
   private createDefaultContext(projectPath?: string): CLIContext {
@@ -699,7 +686,7 @@ export class CodeflowCLI {
   private async performStartupChecks(): Promise<void> {
     // Check project initialization
     const projectState = this.stateManager.getProjectState(this.context.projectPath);
-    if (!projectState.initialized) {
+    if (!projectState.projectId) {
       this.logger.info('Initializing project for Codeflow...');
       // Initialize project with PRISM analysis
       await this.prismService.analyzeProject();

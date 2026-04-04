@@ -89,8 +89,8 @@ export class StorageManager {
   private logger: Logger;
   private errorHandler: ErrorHandler;
   private config: StorageConfig;
-  private vectorStore: VectorStorageBackend;
-  private metadataStore: MetadataStorageBackend;
+  private vectorStore!: VectorStorageBackend;
+  private metadataStore!: MetadataStorageBackend;
   private cache: Map<string, any> = new Map();
 
   constructor(config?: Partial<StorageConfig>, logger?: Logger) {
@@ -642,9 +642,9 @@ export class SQLiteVectorStore implements VectorStorageBackend {
     let normB = 0;
 
     for (let i = 0; i < a.length; i++) {
-      dotProduct += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
+      dotProduct += a[i]! * b[i]!;
+      normA += a[i]! * a[i]!;
+      normB += b[i]! * b[i]!;
     }
 
     return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
@@ -739,9 +739,9 @@ export class MemoryVectorStore implements VectorStorageBackend {
     let normB = 0;
 
     for (let i = 0; i < a.length; i++) {
-      dotProduct += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
+      dotProduct += a[i]! * b[i]!;
+      normA += a[i]! * a[i]!;
+      normB += b[i]! * b[i]!;
     }
 
     return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
@@ -808,8 +808,13 @@ export class JSONMetadataStore implements MetadataStorageBackend {
  * SQLite Metadata Store - Database-backed metadata storage
  */
 export class SQLiteMetadataStore implements MetadataStorageBackend {
-  // Implementation would be similar to SQLiteVectorStore but for key-value metadata
-  // Omitted for brevity - would follow similar patterns
+  private config: StorageConfig;
+  private logger: Logger;
+
+  constructor(config: StorageConfig, logger: Logger) {
+    this.config = config;
+    this.logger = logger;
+  }
 
   async store(key: string, data: any): Promise<void> {
     // Implementation
@@ -828,10 +833,3 @@ export class SQLiteMetadataStore implements MetadataStorageBackend {
     // Implementation
   }
 }
-
-export type {
-  StorageConfig,
-  RetentionPolicy,
-  VectorEntry,
-  VectorMetadata
-};

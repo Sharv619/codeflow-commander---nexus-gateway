@@ -301,6 +301,102 @@ app.get('/result/:id', (req, res) => {
     }
 });
 
+// Dev log trending analysis — shows quality trends over time
+app.get('/results/trends', (req, res) => {
+    const { days = 30 } = req.query;
+    const cutoff = new Date(Date.now() - parseInt(days, 10) * 24 * 60 * 60 * 1000);
+
+    const filtered = results.filter(r => new Date(r.timestamp) >= cutoff);
+    const byType = {};
+    const byDay = {};
+    let totalIssues = 0;
+    let totalPass = 0;
+    let totalFail = 0;
+
+    for (const r of filtered) {
+        const date = new Date(r.timestamp).toISOString().split('T')[0];
+        if (!byDay[date]) {
+            byDay[date] = { analyze: 0, 'git-hook-analyze': 0, test: 0, pass: 0, fail: 0 };
+        }
+        byDay[date][r.type] = (byDay[date][r.type] || 0) + 1;
+
+        if (!byType[r.type]) {
+            byType[r.type] = { total: 0, pass: 0, fail: 0, issues: 0 };
+        }
+        byType[r.type].total++;
+
+        if (r.type === 'test') {
+            if (r.data?.success) {
+                byDay[date].pass++;
+                totalPass++;
+                byType[r.type].pass++;
+            } else {
+                byDay[date].fail++;
+                totalFail++;
+                byType[r.type].fail++;
+            }
+        } else {
+            const status = r.data?.overallStatus || 'UNKNOWN';
+            if (status === 'PASS') {
+                byDay[date].pass++;
+                totalPass++;
+                byType[r.type].pass++;
+            } else if (status === 'FAIL') {
+                byDay[date].fail++;
+                totalFail++;
+                byType[r.type].fail++;
+                const issues = (r.data?.files || []).reduce((sum, f) => sum + (f.issues?.length || 0), 0);
+                byType[r.type].issues += issues;
+                totalIssues += issues;
+            }
+        }
+    }
+
+    const sortedDays = Object.keys(byDay).sort();
+    const passRate = filtered.length > 0 ? Math.round((totalPass / (totalPass + totalFail)) * 100) : 0;
+
+    res.json({
+        period: `${days} days`,
+        totalAnalyses: filtered.length,
+        totalPass,
+        totalFail,
+        passRate: `${passRate}%`,
+        totalIssuesDetected: totalIssues,
+        byDay: sortedDays.map(d => ({ date: d, ...byDay[d] })),
+        byType: Object.fromEntries(Object.entries(byType).sort((a, b) => b[1] - a[1]))
+    });
+});
+
+// Dev log entry — record commit quality events for trending
+app.post('/devlog', (req, res) => {
+    const { type, commitHash, branch, score, status, issues, provider, duration } = req.body;
+
+    if (!type || !commitHash) {
+        return res.status(400).json({ error: 'Missing required fields: type, commitHash' });
+    }
+
+    const entry = {
+        id: Date.now().toString(),
+        type: 'devlog',
+        timestamp: new Date().toISOString(),
+        data: {
+            eventType: type,
+            commitHash,
+            branch: branch || 'unknown',
+            score: score || null,
+            status: status || 'UNKNOWN',
+            issues: issues || [],
+            provider: provider || 'unknown',
+            duration: duration || null
+        }
+    };
+
+    results.push(entry);
+    saveResults();
+
+    res.json({ success: true, id: entry.id });
+});
+
 app.listen(port, () => {
     console.log(`Server listening at http://localhost:${port}`);
 });
