@@ -1,7 +1,7 @@
 
 import React from 'react';
-import type { PipelineStageInfo, StageExecution } from '../../../types';
-import { StageStatus } from '../../../types';
+import type { PipelineStageInfo, StageExecution } from '../src/types/pipeline';
+import { StageStatus } from '../src/types/pipeline';
 
 interface PipelineStageProps {
   stageInfo: PipelineStageInfo;

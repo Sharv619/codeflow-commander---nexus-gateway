@@ -1,6 +1,6 @@
 
 import React from 'react';
-import type { CodeReviewResult, CodeReviewFileResult, CodeReviewIssue } from '../../../types';
+import type { CodeReviewResult, CodeReviewFileResult, CodeReviewIssue } from '../src/types/pipeline';
 
 const getIssueTypeColor = (type: CodeReviewIssue['type']) => {
   switch (type) {

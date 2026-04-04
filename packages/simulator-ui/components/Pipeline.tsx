@@ -1,13 +1,13 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import type { PipelineStageInfo, StageExecution, CodeReviewResult, PipelineConfig, SimulationResult, StageConfig } from '../../../types';
-import { StageStatus, SimulationMode } from '../../../types';
-import { MOCK_SUCCESS_REVIEW, MOCK_FAILURE_REVIEW } from '../../../constants';
+import type { PipelineStageInfo, StageExecution, CodeReviewResult, PipelineConfig, SimulationResult, StageConfig } from '../src/types/pipeline';
+import { StageStatus, SimulationMode } from '../src/types/pipeline';
+import { MOCK_SUCCESS_REVIEW, MOCK_FAILURE_REVIEW } from '../src/constants';
 import PipelineStage from './PipelineStage';
 import CodeReviewDetails from './CodeReviewDetails';
 import LogOutput from './LogOutput';
 import TestResultsDetails from './TestResultsDetails';
-import { simulationEngine } from '../../../simulationEngine';
-import { PipelineConfigManager } from '../../../pipelineConfigs';
+import { simulationEngine } from '../src/simulationEngine';
+import { PipelineConfigManager } from '../src/pipelineConfigs';
 
 const SIMULATION_DELAY_MS = 1500;
 
