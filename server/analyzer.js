@@ -59,7 +59,7 @@ function analyzeCode(diffText) {
           suggestions.push('Remove debug prints from production code');
           score -= 1;
         }
-        if (/==\s*null|!=\s*null/.test(ln)) {
+        if (/[^!=]==\s*null|[^!]!=\s*null/.test(ln)) {
           fileIssues.push({ line: j + 1, type: 'Best Practice', description: 'Prefer explicit null checks or optional chaining', link: null });
           score -= 1;
         }
