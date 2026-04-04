@@ -34,7 +34,34 @@ const app = express();
 const port = 3001;
 
 app.use(cors());
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: '50kb' }));
+
+// Root route - API status
+app.get('/', (_req, res) => {
+  res.json({
+    service: 'codeflow-commander',
+    version: '2.0.4',
+    endpoints: {
+      'GET /': 'This status page',
+      'POST /analyze': 'Analyze code diff',
+      'POST /git-hook': 'Git hook analysis',
+      'POST /test': 'Run tests',
+      'POST /devlog': 'Log quality event',
+      'GET /results': 'All analysis results',
+      'GET /results/trends': 'Aggregated trends',
+      'GET /result/:id': 'Single result by ID',
+      'POST /api/ai': 'AI proxy (Gemini)',
+    },
+    resultsCount: results.length,
+  });
+});
+
+// Rate limiter for analysis endpoints
+const analysisLimiter = rateLimit({ windowMs: 60 * 1000, max: 60, message: { error: 'Too many requests, try again later' } });
+app.use('/analyze', analysisLimiter);
+app.use('/git-hook', analysisLimiter);
+app.use('/test', analysisLimiter);
+app.use('/devlog', rateLimit({ windowMs: 60 * 1000, max: 100, message: { error: 'Too many requests' } }));
 
 // Results storage - persisted to results.json
 const RESULTS_FILE = path.join(process.cwd(), 'results.json');
@@ -52,7 +79,7 @@ function loadResults() {
 
 function saveResults() {
   try {
-    fs.writeFileSync(RESULTS_FILE, JSON.stringify(results, null, 2));
+    fs.writeFileSync(RESULTS_FILE, JSON.stringify(results, null, 2), { mode: 0o600 });
   } catch (e) {
     console.error('Failed to save results:', e);
   }
@@ -67,11 +94,15 @@ app.post('/analyze', async (req, res) => {
     const payload = code || diff || '';
 
     if (!payload) {
-        return res.json({ error: 'No code provided' });
+        return res.status(400).json({ error: 'No code or diff provided' });
+    }
+
+    if (payload.length > 25000) {
+        return res.status(413).json({ error: 'Payload too large (max 25KB)' });
     }
 
     const tmpDir = os.tmpdir();
-    const tmpFile = path.join(tmpDir, `temp_analysis_${Date.now()}.js`);
+    const tmpFile = path.join(tmpDir, `temp_analysis_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.js`);
 
     try {
         fs.writeFileSync(tmpFile, payload, 'utf8');
@@ -111,7 +142,7 @@ app.post('/analyze', async (req, res) => {
 
             if (parsed === null) {
                 try { fs.unlinkSync(tmpFile); } catch (_) {}
-                return res.status(500).json({ error: 'Failed to parse ESLint output', stdout: out, stderr: err, exitCode: code });
+                return res.status(500).json({ error: 'Failed to parse ESLint output' });
             }
 
             try { fs.unlinkSync(tmpFile); } catch (_) {}
@@ -123,12 +154,12 @@ app.post('/analyze', async (req, res) => {
                 saveResults();
                 return res.json(normalized);
             } catch (normErr) {
-                return res.status(500).json({ error: 'Failed to normalize ESLint output', detail: normErr.message });
+                return res.status(500).json({ error: 'Failed to normalize ESLint output' });
             }
         });
     } catch (e) {
         try { fs.unlinkSync(tmpFile); } catch (_) {}
-        return res.status(500).json({ error: e.message });
+        return res.status(500).json({ error: 'Analysis failed' });
     }
 });
 
@@ -139,11 +170,15 @@ app.post('/git-hook', async (req, res) => {
     const payload = diff || '';
 
     if (!payload) {
-        return res.json({ error: 'No diff provided' });
+        return res.status(400).json({ error: 'No diff provided' });
+    }
+
+    if (payload.length > 25000) {
+        return res.status(413).json({ error: 'Diff too large (max 25KB)' });
     }
 
     const tmpDir = os.tmpdir();
-    const tmpFile = path.join(tmpDir, `temp_git_hook_analysis_${Date.now()}.js`);
+    const tmpFile = path.join(tmpDir, `temp_git_hook_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.js`);
 
     try {
         fs.writeFileSync(tmpFile, payload, 'utf8');
@@ -183,7 +218,7 @@ app.post('/git-hook', async (req, res) => {
 
             if (parsed === null) {
                 try { fs.unlinkSync(tmpFile); } catch (_) {}
-                return res.status(500).json({ error: 'Failed to parse ESLint output', stdout: out, stderr: err, exitCode: code });
+                return res.status(500).json({ error: 'Failed to parse ESLint output' });
             }
 
             try { fs.unlinkSync(tmpFile); } catch (_) {}
@@ -195,16 +230,14 @@ app.post('/git-hook', async (req, res) => {
                 saveResults();
                 return res.json({ branch, commitId, result: normalized });
             } catch (normErr) {
-                return res.status(500).json({ error: 'Failed to normalize ESLint output', detail: normErr.message });
+                return res.status(500).json({ error: 'Failed to normalize ESLint output' });
             }
         });
     } catch (e) {
         try { fs.unlinkSync(tmpFile); } catch (_) {}
-        return res.status(500).json({ error: e.message });
+        return res.status(500).json({ error: 'Git hook analysis failed' });
     }
 });
-
-// Server-side AI proxy endpoint
 const aiLimiter = rateLimit({ windowMs: 60 * 1000, max: 30 });
 
 app.post('/api/ai', aiLimiter, async (req, res) => {
@@ -234,7 +267,7 @@ app.post('/api/ai', aiLimiter, async (req, res) => {
         const resp = await fetch(geminiUrl, { method: 'POST', headers, body: JSON.stringify(payload) });
         const text = await resp.text();
 
-        console.log('Raw Gemini API response:', text);
+        console.log('Gemini API response status:', resp.status);
 
         try {
             const json = JSON.parse(text);
@@ -244,8 +277,8 @@ app.post('/api/ai', aiLimiter, async (req, res) => {
             return res.status(resp.status).type('text').send(text);
         }
     } catch (err) {
-        console.error('AI proxy error:', err);
-        return res.status(502).json({ error: 'Failed to contact AI provider', detail: err.message });
+        console.error('AI proxy error');
+        return res.status(502).json({ error: 'Failed to contact AI provider' });
     }
 });
 
@@ -284,7 +317,7 @@ app.post('/test', async (req, res) => {
             }
         });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Test execution failed' });
     }
 });
 
