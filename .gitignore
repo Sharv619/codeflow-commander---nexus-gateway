@@ -159,6 +159,7 @@ docs/archive/*.md
 # CLI tool config
 ~/.codeflow-hook/
 ~/.codeflow-hook/config.json
+.codeflow/
 
 # Package lock (optional - remove if you want to commit it)
 # package-lock.json

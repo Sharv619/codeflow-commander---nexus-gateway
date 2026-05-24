@@ -263,6 +263,139 @@ async function callGeminiAPI(diff, config) {
   });
 }
 
+async function callOpenAIAPI(diff, config) {
+  const prompt = AI_REVIEW_PROMPT + diff;
+  const url = config.apiUrl || 'https://api.openai.com/v1/chat/completions';
+  const payload = JSON.stringify({
+    model: config.model || 'gpt-4o-mini',
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.2,
+    max_tokens: 4096
+  });
+
+  return postJson(url, payload, {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${config.apiKey}`
+  }, 'OpenAI');
+}
+
+async function callClaudeAPI(diff, config) {
+  const prompt = AI_REVIEW_PROMPT + diff;
+  const url = config.apiUrl || 'https://api.anthropic.com/v1/messages';
+  const payload = JSON.stringify({
+    model: config.model || 'claude-3-5-sonnet-latest',
+    max_tokens: 4096,
+    messages: [{ role: 'user', content: prompt }]
+  });
+
+  return postJson(url, payload, {
+    'Content-Type': 'application/json',
+    'x-api-key': config.apiKey,
+    'anthropic-version': '2023-06-01'
+  }, 'Claude', (response) => response.content?.[0]?.text);
+}
+
+function postJson(url, payload, headers, providerName, extractText) {
+  const urlObj = new URL(url);
+  const client = urlObj.protocol === 'https:' ? https : http;
+
+  return new Promise((resolve, reject) => {
+    const req = client.request(urlObj, {
+      method: 'POST',
+      headers: {
+        ...headers,
+        'Content-Length': Buffer.byteLength(payload)
+      },
+      timeout: 30000
+    }, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          return reject(new Error(`${providerName} API returned ${res.statusCode}: ${data.substring(0, 200)}`));
+        }
+        try {
+          const response = JSON.parse(data);
+          const text = extractText
+            ? extractText(response)
+            : response.choices?.[0]?.message?.content;
+          if (!text) {
+            return reject(new Error(`${providerName} returned no text response`));
+          }
+          resolve(text);
+        } catch (e) {
+          reject(new Error(`Failed to parse ${providerName} response: ${e.message}`));
+        }
+      });
+    });
+
+    req.on('error', (e) => reject(e));
+    req.on('timeout', () => {
+      req.destroy();
+      reject(new Error(`${providerName} API request timed out after 30s`));
+    });
+
+    req.write(payload);
+    req.end();
+  });
+}
+
+function analyzeCodeHeuristically(diffText) {
+  const files = [];
+  const lines = (diffText || '').split(/\r?\n/).slice(0, 500);
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.startsWith('+++ b/')) {
+      continue;
+    }
+
+    const fileName = line.replace('+++ b/', '').trim();
+    const issues = [];
+    const suggestions = [];
+    let score = 10;
+
+    for (let j = i + 1; j < Math.min(i + 80, lines.length); j++) {
+      const changedLine = lines[j];
+      if (changedLine.startsWith('diff --git') || changedLine.startsWith('+++ b/')) {
+        break;
+      }
+
+      if (/TODO|FIXME/.test(changedLine)) {
+        issues.push({ line: j + 1, type: 'Quality', description: 'TODO/FIXME left in changed code' });
+        score -= 2;
+      }
+      if (/(?:password|secret|apikey|api_key|token)\s*[=:]\s*["'][^"']+["']/i.test(changedLine)) {
+        issues.push({ line: j + 1, type: 'Security', description: 'Potential secret committed in code' });
+        score -= 4;
+      }
+      if (/console\.log\(|fmt\.Println\(|print\(/.test(changedLine)) {
+        suggestions.push('Remove debug output before shipping');
+        score -= 1;
+      }
+    }
+
+    files.push({
+      fileName,
+      status: issues.length === 0 ? 'PASS' : 'FAIL',
+      score: Math.max(1, score),
+      issues,
+      suggestions
+    });
+  }
+
+  if (files.length === 0) {
+    files.push({ fileName: 'unknown', status: 'PASS', score: 10, issues: [], suggestions: [] });
+  }
+
+  const overallStatus = files.every((file) => file.status === 'PASS') ? 'PASS' : 'FAIL';
+  return {
+    overallStatus,
+    summary: overallStatus === 'PASS' ? 'No critical issues found.' : 'Issues detected; review required.',
+    files
+  };
+}
+
 /**
  * Parse AI response text into structured review result.
  * Handles cases where the response is wrapped in markdown code blocks.
@@ -358,7 +491,11 @@ async function reviewDiff(diff, options = {}) {
   // Try cloud provider (Gemini, OpenAI, Claude)
   if (config?.apiKey) {
     try {
-      const responseText = await callGeminiAPI(diff, config);
+      const responseText = provider === 'openai'
+        ? await callOpenAIAPI(diff, config)
+        : provider === 'claude'
+          ? await callClaudeAPI(diff, config)
+          : await callGeminiAPI(diff, config);
       const result = parseAIResponse(responseText);
 
       if (result.score < minScore) {
@@ -394,8 +531,7 @@ async function reviewDiff(diff, options = {}) {
   }
 
   // Final fallback: heuristic analyzer
-  const { analyzeCode } = require('../../../server/analyzer.js');
-  const heuristicResult = analyzeCode(diff);
+  const heuristicResult = analyzeCodeHeuristically(diff);
   const score = heuristicResult.files.reduce((min, f) => Math.min(min, f.score), 10);
   const passed = score >= minScore && heuristicResult.overallStatus === 'PASS';
 
@@ -414,6 +550,8 @@ module.exports = {
   reviewDiff,
   loadConfig,
   callGeminiAPI,
+  callOpenAIAPI,
+  callClaudeAPI,
   callOllamaAPI,
   listOllamaModels,
   isOllamaRunning,

@@ -8,7 +8,7 @@ describe('Codeflow Hook CLI', () => {
   test('should display help information', () => {
     const output = execSync(`node "${cliPath}" --help`, { encoding: 'utf8' });
     expect(output).toContain('codeflow-hook');
-    expect(output).toContain('Interactive CI/CD simulator');
+    expect(output).toContain('Local AI-powered code analysis');
     expect(output).toContain('Commands:');
     expect(output).toContain('config');
     expect(output).toContain('install');
@@ -53,7 +53,7 @@ describe('Codeflow Hook CLI', () => {
     expect(packageJson.name).toBe('codeflow-hook');
     expect(packageJson.version).toMatch(/^\d+\.\d+\.\d+$/);
     expect(packageJson.bin['codeflow-hook']).toBe('bin/codeflow-hook.js');
-    expect(packageJson.main).toBe('index.js');
+    expect(packageJson.main).toBe('bin/codeflow-hook.js');
     expect(packageJson.type).toBe('module');
   });
 
@@ -62,19 +62,9 @@ describe('Codeflow Hook CLI', () => {
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
 
     expect(packageJson.files).toContain('README.md');
-    expect(packageJson.files).toContain('bin/');
-    expect(packageJson.files).toContain('lib/');
-  });
-
-  test('should have compiled TypeScript files', () => {
-    const distDir = path.join(__dirname, '..', 'lib', 'cli-integration', 'dist');
-
-    expect(fs.existsSync(distDir)).toBe(true);
-
-    const files = fs.readdirSync(distDir);
-    expect(files).toContain('index.js');
-    expect(files).toContain('types.js');
-    expect(files).toContain('pipelineConfigs.js');
-    expect(files).toContain('simulationEngine.js');
+    expect(packageJson.files).toContain('bin/codeflow-hook.js');
+    expect(packageJson.files).toContain('lib/ai-reviewer.cjs');
+    expect(packageJson.files).toContain('lib/agents/');
+    expect(packageJson.files).toContain('lib/profile/');
   });
 });

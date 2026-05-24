@@ -8,10 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os'; // Make sure os is imported
 import readline from 'readline';
-import { orchestrateReview } from './agents.js';
-
-// Import CLI integration service
-import { indexProject } from '../lib/cli-integration/dist/index.js';
+import { execFileSync, spawn } from 'child_process';
 
 // Export for use in agents module
 export { callAIProvider };
@@ -20,8 +17,8 @@ const program = new Command();
 
 program
   .name('codeflow-hook')
-  .description('Interactive CI/CD simulator and AI-powered code reviewer with EKG backend integration')
-  .version('4.0.0');
+  .description('Local AI-powered code analysis and git hook management')
+  .version('2.3.0');
 
 // Configure AI provider settings
 program
@@ -226,31 +223,27 @@ program
     }
   });
 
-// Index repository via EKG Ingestion Service (Phase 4)
+// Index repository locally.
 program
   .command('index')
-  .description('Index repository via EKG Ingestion Service')
+  .description('Build a local project file index')
   .option('-d, --dry-run', 'Show what would be indexed without actually indexing')
   .action(async (options) => {
     try {
-      const spinner = ora('Submitting repository for EKG analysis...').start();
+      const spinner = ora('Indexing project files...').start();
 
-      const result = await indexProject({
-        dryRun: options.dryRun || false
-      });
+      const result = indexLocalProject(process.cwd(), options.dryRun || false);
 
-      spinner.succeed('Repository indexing initiated');
+      spinner.succeed(options.dryRun ? 'Project scan completed' : 'Local project index written');
       console.log(chalk.green(`✅ ${result.message}`));
-
-      if (result.repositoryId) {
-        console.log(chalk.blue(`📋 Repository ID: ${result.repositoryId}`));
-      }
 
       if (result.stats) {
         console.log(chalk.gray(`📊 Stats: ${JSON.stringify(result.stats, null, 2)}`));
       }
 
-      console.log(chalk.cyan('🔗 Repository submitted to EKG Ingestion Service for analysis'));
+      if (!options.dryRun) {
+        console.log(chalk.cyan(`Local index: ${result.indexPath}`));
+      }
 
     } catch (error) {
       console.log(chalk.red(`❌ Indexing failed: ${error.message}`));
@@ -271,17 +264,15 @@ program
         fs.mkdirSync(hooksDir, { recursive: true });
       }
 
-      // CHANGE 1: The git hooks are modified to PIPE the diff content via stdin
       const preCommitHook = `#!/usr/bin/env bash
 # Codeflow pre-commit hook
 set -e
-echo "🔬 Running Codeflow AI Code Analysis..."
+echo "Running Codeflow AI Code Analysis..."
 STAGED_DIFF=$(git diff --cached --no-color)
 if [ -z "$STAGED_DIFF" ]; then
-  echo "ℹ️  No staged changes to analyze"
+  echo "No staged changes to analyze"
   exit 0
 fi
-# Use stdin to avoid "command line too long" error
 echo "$STAGED_DIFF" | npx codeflow-hook analyze-diff
 `;
 
@@ -290,18 +281,18 @@ echo "$STAGED_DIFF" | npx codeflow-hook analyze-diff
       const prePushHook = `#!/usr/bin/env bash
 # Codeflow pre-push hook
 set -e
-echo "🚀 Running Codeflow CI/CD simulation..."
+REMOTE_NAME="$1"
+REMOTE_URL="$2"
+
+echo "Running Codeflow CI/CD simulation..."
 if [ -f "package.json" ]; then
-  echo "🧪 Running tests..."
-  npm test || (echo "❌ Tests failed" && exit 1)
+  npx codeflow-hook simulate fast-dev || exit 1
 fi
-STAGED_DIFF=$(git diff --cached --no-color)
-if [ -n "$STAGED_DIFF" ]; then
-  echo "🔬 Running AI Code Review..."
-  # Use stdin to avoid "command line too long" error
-  echo "$STAGED_DIFF" | npx codeflow-hook analyze-diff || exit 1
-fi
-echo "✅ All checks passed!"
+
+echo "Running Codeflow pre-push review..."
+npx codeflow-hook pre-push-review "$REMOTE_NAME" "$REMOTE_URL"
+
+echo "All checks passed!"
 exit 0
 `;
       fs.writeFileSync(path.join(hooksDir, 'pre-push'), prePushHook, { mode: 0o755 });
@@ -321,7 +312,7 @@ exit 0
 // Analyze diff with AI review + heuristic fallback
 program
   .command('analyze-diff')
-  .description('Analyze git diff with AI code review (Gemini API) and heuristic fallback')
+  .description('Analyze git diff with AI code review and heuristic fallback')
   .argument('[diff]', 'Git diff content')
   .option('--min-score <score>', 'Minimum score to pass (1-10, default: 3)', '3')
   .option('--json', 'Output results as JSON only')
@@ -348,9 +339,9 @@ program
       }
 
       const minScore = parseInt(options.minScore, 10);
-      const { reviewDiff } = await import('../lib/ai-reviewer.cjs');
+      const { runAgentReview } = await import('../lib/agents/orchestrator.cjs');
 
-      const result = await reviewDiff(diffContent, { minScore });
+      const result = await runAgentReview(diffContent, { minScore });
 
       if (options.json) {
         console.log(JSON.stringify(result, null, 2));
@@ -393,11 +384,208 @@ program
     }
   });
 
+program
+  .command('pre-push-review')
+  .description('Review the exact commit ranges Git is about to push')
+  .argument('[remoteName]', 'Git remote name', 'origin')
+  .argument('[remoteUrl]', 'Git remote URL')
+  .option('--min-score <score>', 'Minimum score to pass (1-10, default: 3)', '3')
+  .option('--json', 'Output results as JSON only')
+  .action(async (remoteName, _remoteUrl, options) => {
+    try {
+      const prePushInput = await readStdinText();
+      const ranges = resolvePrePushRanges(prePushInput, remoteName || 'origin');
+      if (ranges.length === 0) {
+        if (!options.json) {
+          console.log(chalk.gray('No push updates to analyze'));
+        }
+        return;
+      }
+
+      const diffContent = gatherPrePushDiff(ranges);
+      if (diffContent.trim() === '') {
+        if (!options.json) {
+          console.log(chalk.gray('No pushed diff to analyze'));
+        }
+        return;
+      }
+
+      const { runAgentReview } = await import('../lib/agents/orchestrator.cjs');
+      const result = await runAgentReview(diffContent, { minScore: parseInt(options.minScore, 10) });
+
+      if (options.json) {
+        console.log(JSON.stringify({ ranges, ...result }, null, 2));
+      } else {
+        console.log(chalk.gray(`Analyzed ${ranges.length} pushed ref update(s)`));
+        console.log(result.success ? chalk.green(result.message) : chalk.red(result.message));
+      }
+
+      if (!options.json) {
+        displayAgentResults(result.result.agentResults || []);
+      }
+
+      if (!result.success) {
+        process.exit(1);
+      }
+    } catch (error) {
+      console.log(chalk.red(`Pre-push review failed: ${error.message}`));
+      process.exit(1);
+    }
+  });
+
+const agents = program
+  .command('agents')
+  .description('Run and inspect local review agents');
+
+agents
+  .command('list')
+  .description('List enabled local agents')
+  .action(async () => {
+    const { listAgents } = await import('../lib/agents/orchestrator.cjs');
+    const enabledAgents = listAgents();
+    enabledAgents.forEach((agent) => {
+      const mode = agent.blocking ? 'blocking' : 'advisory';
+      console.log(`${agent.id} (${mode}) - ${agent.description}`);
+    });
+  });
+
+agents
+  .command('doctor')
+  .description('Check local agent orchestration readiness')
+  .action(async () => {
+    const { doctor } = await import('../lib/agents/orchestrator.cjs');
+    const report = doctor();
+    report.checks.forEach((check) => {
+      const label = check.ok ? chalk.green('PASS') : check.warning ? chalk.yellow('WARN') : chalk.red('FAIL');
+      console.log(`${label} ${check.name}${check.ok ? '' : ` - ${check.warning || 'Required check failed'}`}`);
+    });
+
+    if (!report.ok) {
+      process.exit(1);
+    }
+  });
+
+agents
+  .command('run')
+  .description('Run local agents against a git diff')
+  .argument('[diff]', 'Git diff content')
+  .option('--min-score <score>', 'Minimum score to pass (1-10, default: 3)', '3')
+  .option('--json', 'Output results as JSON only')
+  .action(async (diff, options) => {
+    let diffContent = diff;
+    if (!diffContent) {
+      diffContent = await readStdinText();
+    }
+
+    if (diffContent.trim() === '') {
+      console.log(chalk.gray('No changes to analyze'));
+      return;
+    }
+
+    const { runAgentReview } = await import('../lib/agents/orchestrator.cjs');
+    const result = await runAgentReview(diffContent, { minScore: parseInt(options.minScore, 10) });
+
+    if (options.json) {
+      console.log(JSON.stringify(result, null, 2));
+    } else {
+      console.log(result.success ? chalk.green(result.message) : chalk.red(result.message));
+      displayAgentResults(result.result.agentResults || []);
+    }
+
+    if (!result.success) {
+      process.exit(1);
+    }
+  });
+
+const history = program
+  .command('history')
+  .description('Inspect local Codeflow review history');
+
+history
+  .command('list')
+  .description('List recent local review runs')
+  .option('-n, --limit <count>', 'Number of runs to show', '10')
+  .action(async (options) => {
+    const { listReviewRuns } = await import('../lib/profile/history-store.cjs');
+    const runs = listReviewRuns(process.cwd(), parseInt(options.limit, 10));
+    if (runs.length === 0) {
+      console.log(chalk.gray('No Codeflow history yet'));
+      return;
+    }
+
+    for (const run of runs) {
+      const color = run.success ? chalk.green : chalk.red;
+      console.log(color(`${run.id} ${run.status || 'unknown'} score=${run.score ?? 'n/a'} branch=${run.branch || 'unknown'} ${run.timestamp}`));
+    }
+  });
+
+history
+  .command('show')
+  .description('Show a local review run')
+  .argument('[id]', 'Run id or latest', 'latest')
+  .option('--json', 'Output JSON')
+  .action(async (id, options) => {
+    const { readRun } = await import('../lib/profile/history-store.cjs');
+    const run = readRun(process.cwd(), id);
+    if (!run) {
+      console.log(chalk.red(`History run not found: ${id}`));
+      process.exit(1);
+    }
+
+    if (options.json) {
+      console.log(JSON.stringify(run, null, 2));
+      return;
+    }
+
+    displayHistoryRun(run);
+  });
+
+history
+  .command('clear')
+  .description('Delete local Codeflow review history')
+  .action(async () => {
+    const { clearHistory } = await import('../lib/profile/history-store.cjs');
+    clearHistory(process.cwd());
+    console.log(chalk.green('Codeflow history cleared'));
+  });
+
+const profile = program
+  .command('profile')
+  .description('Show developer push profile and coaching tips');
+
+profile
+  .command('summary')
+  .description('Show developer push profile summary')
+  .option('--json', 'Output JSON')
+  .action(async (options) => {
+    const { buildDeveloperProfile } = await import('../lib/profile/profile-builder.cjs');
+    const summary = buildDeveloperProfile(process.cwd());
+    if (options.json) {
+      console.log(JSON.stringify(summary, null, 2));
+      return;
+    }
+    displayProfileSummary(summary);
+  });
+
+profile
+  .command('tips')
+  .description('Show personalized code review tips')
+  .option('--json', 'Output JSON')
+  .action(async (options) => {
+    const { buildCoachingTips } = await import('../lib/profile/coaching-engine.cjs');
+    const tips = buildCoachingTips(process.cwd());
+    if (options.json) {
+      console.log(JSON.stringify(tips, null, 2));
+      return;
+    }
+    displayCoachingTips(tips);
+  });
+
 // Run pipeline simulation (Enhanced Frontend Integration)
 program
   .command('simulate')
   .description('Run configurable CI/CD pipeline simulation')
-  .argument('[template]', 'Pipeline template ID (nodejs-basic, enterprise-advanced, fast-dev, chaotic-test, microservices-parallel)')
+  .argument('[template]', 'Pipeline template ID (nodejs-basic, fast-dev)')
   .option('-c, --config <file>', 'Custom pipeline configuration JSON file')
   .option('-o, --output <file>', 'Output results to JSON file')
   .option('-m, --mode <mode>', 'Simulation mode (REALISTIC, FAST, DETERMINISTIC, CHAOTIC)', 'REALISTIC')
@@ -409,22 +597,24 @@ program
 
       // Load configuration from file or template
       if (options.config) {
-        console.log(chalk.blue(`📄 Loading pipeline config from: ${options.config}`));
+        if (!options.json) {
+          console.log(chalk.blue(`📄 Loading pipeline config from: ${options.config}`));
+        }
         const fs = await import('fs/promises');
         const configData = await fs.readFile(options.config, 'utf8');
         pipelineConfig = JSON.parse(configData);
       } else {
         const templateId = template || 'nodejs-basic';
-        console.log(chalk.blue(`🎯 Using pipeline template: ${templateId}`));
+        if (!options.json) {
+          console.log(chalk.blue(`🎯 Using pipeline template: ${templateId}`));
+        }
 
-        // Import simulation engine and config manager dynamically
-        const { PipelineConfigManager } = await import('../lib/cli-integration/dist/pipelineConfigs.js');
-        pipelineConfig = PipelineConfigManager.getPipelineById(templateId);
+        pipelineConfig = getPipelineTemplate(templateId);
 
         if (!pipelineConfig) {
           console.log(chalk.red(`❌ Unknown pipeline template: ${templateId}`));
           console.log(chalk.gray('Available templates:'));
-          const templates = PipelineConfigManager.getAvailableTemplates();
+          const templates = getAvailablePipelineTemplates();
           templates.forEach(t => {
             console.log(chalk.gray(`  • ${t.id}: ${t.description}`));
           });
@@ -444,17 +634,23 @@ program
         };
       }
 
-      console.log(chalk.blue(`🚀 Starting pipeline simulation: ${pipelineConfig.name}`));
-      console.log(chalk.gray(`   Mode: ${pipelineConfig.settings.mode}`));
-      console.log(chalk.gray(`   Stages: ${pipelineConfig.stages.length}`));
+      if (options.json) {
+        pipelineConfig.settings.streamOutput = false;
+      }
 
-      const spinner = ora('Running pipeline simulation...').start();
+      if (!options.json) {
+        console.log(chalk.blue(`🚀 Starting pipeline simulation: ${pipelineConfig.name}`));
+        console.log(chalk.gray(`   Mode: ${pipelineConfig.settings.mode}`));
+        console.log(chalk.gray(`   Stages: ${pipelineConfig.stages.length}`));
+      }
 
-      // Import and run simulation engine
-      const { simulationEngine } = await import('../lib/cli-integration/dist/simulationEngine.js');
-      const result = await simulationEngine.executePipeline(pipelineConfig);
+      const spinner = options.json ? null : ora('Running pipeline simulation...').start();
 
-      spinner.succeed('Simulation completed');
+      const result = await runLocalPipelineSimulation(pipelineConfig);
+
+      if (spinner) {
+        spinner.succeed('Simulation completed');
+      }
 
       // Display results
       if (options.json) {
@@ -676,6 +872,459 @@ ${diff}
 Provide your analysis:`;
 }
 
+function readCodeflowHookConfig() {
+  const configPath = path.join(os.homedir(), '.codeflow-hook', 'config.json');
+  if (!fs.existsSync(configPath)) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  } catch (error) {
+    throw new Error(`Invalid Codeflow config at ${configPath}: ${error.message}`);
+  }
+}
+
+async function readStdinText() {
+  if (process.stdin.isTTY) {
+    return '';
+  }
+
+  const chunks = [];
+  for await (const chunk of process.stdin) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+function resolvePrePushRanges(prePushInput, remoteName) {
+  const zeroOid = /^0{40}$/;
+  return prePushInput
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [localRef, localOid, remoteRef, remoteOid] = line.split(/\s+/);
+      if (!localRef || !localOid || !remoteRef || !remoteOid || zeroOid.test(localOid)) {
+        return null;
+      }
+
+      if (!zeroOid.test(remoteOid) && gitCommitExists(remoteOid)) {
+        return {
+          localRef,
+          localOid,
+          remoteRef,
+          remoteOid,
+          diffArgs: ['diff', '--no-color', '--find-renames', `${remoteOid}..${localOid}`]
+        };
+      }
+
+      const trackingRef = resolveRemoteTrackingRef(remoteName, remoteRef);
+      const baseRef = trackingRef || resolveDefaultRemoteBase(remoteName) || resolveLocalParent(localOid);
+      if (baseRef) {
+        return {
+          localRef,
+          localOid,
+          remoteRef,
+          remoteOid,
+          diffArgs: ['diff', '--no-color', '--find-renames', `${baseRef}...${localOid}`],
+          fallbackBase: baseRef
+        };
+      }
+
+      const emptyTree = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
+      return {
+        localRef,
+        localOid,
+        remoteRef,
+        remoteOid,
+        diffArgs: ['diff', '--no-color', '--find-renames', emptyTree, localOid]
+      };
+    })
+    .filter(Boolean);
+}
+
+function resolveRemoteTrackingRef(remoteName, remoteRef) {
+  const branchPrefix = 'refs/heads/';
+  if (!remoteRef?.startsWith(branchPrefix)) {
+    return null;
+  }
+
+  const branchName = remoteRef.slice(branchPrefix.length);
+  const trackingRef = `refs/remotes/${remoteName}/${branchName}`;
+  return gitCommitExists(trackingRef) ? trackingRef : null;
+}
+
+function resolveDefaultRemoteBase(remoteName) {
+  const candidates = [
+    `refs/remotes/${remoteName}/HEAD`,
+    `${remoteName}/main`,
+    `${remoteName}/master`,
+    'origin/main',
+    'origin/master'
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      execGit(['rev-parse', '--verify', candidate]);
+      return candidate;
+    } catch {
+      // Try the next conventional base ref.
+    }
+  }
+
+  return null;
+}
+
+function resolveLocalParent(localOid) {
+  const parentRef = `${localOid}^`;
+  return gitCommitExists(parentRef) ? parentRef : null;
+}
+
+function gitCommitExists(ref) {
+  try {
+    execFileSync('git', ['cat-file', '-e', `${ref}^{commit}`], {
+      cwd: process.cwd(),
+      stdio: ['ignore', 'ignore', 'ignore'],
+      windowsHide: true
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function gatherPrePushDiff(ranges) {
+  return ranges.map((range) => {
+    const header = [
+      `diff --codeflow-pre-push ${range.remoteRef} ${range.localRef}`,
+      `# remote ${range.remoteOid}`,
+      `# local ${range.localOid}`
+    ].join('\n');
+    const diff = execGit(range.diffArgs);
+    return `${header}\n${diff}`;
+  }).join('\n');
+}
+
+function execGit(args) {
+  return execFileSync('git', args, {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    maxBuffer: 20 * 1024 * 1024,
+    windowsHide: true
+  });
+}
+
+function indexLocalProject(rootDir, dryRun) {
+  const ignoredDirs = new Set(['.git', 'node_modules', 'dist', 'build', 'coverage', '.next', '.turbo']);
+  const files = [];
+
+  function walk(dir) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (ignoredDirs.has(entry.name)) {
+        continue;
+      }
+
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(fullPath);
+        continue;
+      }
+
+      if (!entry.isFile()) {
+        continue;
+      }
+
+      const stats = fs.statSync(fullPath);
+      files.push({
+        path: path.relative(rootDir, fullPath).replace(/\\/g, '/'),
+        size: stats.size,
+        modifiedAt: stats.mtime.toISOString()
+      });
+    }
+  }
+
+  walk(rootDir);
+
+  const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
+  const indexPath = path.join(rootDir, '.codeflow-index.json');
+  const payload = {
+    generatedAt: new Date().toISOString(),
+    root: rootDir,
+    files,
+    totalBytes
+  };
+
+  if (!dryRun) {
+    fs.writeFileSync(indexPath, JSON.stringify(payload, null, 2));
+  }
+
+  return {
+    ...payload,
+    indexPath,
+    message: dryRun ? 'Dry run completed' : 'Local project index written',
+    stats: { files: files.length, totalBytes }
+  };
+}
+
+function getAvailablePipelineTemplates() {
+  return [
+    { id: 'nodejs-basic', description: 'Install dependencies, run tests, run build' },
+    { id: 'fast-dev', description: 'Run tests only' }
+  ];
+}
+
+function getPipelineTemplate(templateId) {
+  const templates = {
+    'nodejs-basic': {
+      name: 'Node.js Basic',
+      settings: { mode: 'REALISTIC', execute: true },
+      environment: {},
+      stages: [
+        { id: 'install', command: 'npm install --ignore-scripts' },
+        { id: 'test', command: 'npm test' },
+        { id: 'build', command: 'npm run build' }
+      ]
+    },
+    'fast-dev': {
+      name: 'Fast Dev',
+      settings: { mode: 'FAST', execute: true },
+      environment: {},
+      stages: [
+        { id: 'test', command: 'npm test' }
+      ]
+    }
+  };
+
+  return templates[templateId] || null;
+}
+
+async function runLocalPipelineSimulation(pipelineConfig) {
+  const globalConfig = readCodeflowHookConfig();
+  const startedAt = Date.now();
+  const stageTimeoutMs = Number(globalConfig.simulation?.stageTimeoutMs || pipelineConfig.settings?.stageTimeoutMs || 10 * 60 * 1000);
+  const shouldExecute = pipelineConfig.settings?.execute !== false;
+  const stages = [];
+  const logs = [];
+  let stopped = false;
+
+  for (const stage of pipelineConfig.stages) {
+    if (stopped) {
+      stages.push({
+        id: stage.id,
+        name: stage.name || stage.id,
+        status: 'SKIPPED',
+        duration: 0,
+        command: stage.command,
+        metrics: zeroResourceMetrics()
+      });
+      continue;
+    }
+
+    if (!shouldExecute) {
+      stages.push({
+        id: stage.id,
+        name: stage.name || stage.id,
+        status: 'SKIPPED',
+        duration: 0,
+        command: stage.command,
+        metrics: zeroResourceMetrics()
+      });
+      logs.push({ level: 'info', message: `Skipped ${stage.id}; execution disabled by pipeline settings` });
+      continue;
+    }
+
+    const result = await runPipelineStage(stage, {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        ...(pipelineConfig.environment || {})
+      },
+      stream: pipelineConfig.settings?.streamOutput !== false,
+      timeoutMs: stage.timeoutMs || stageTimeoutMs
+    });
+
+    stages.push(result);
+    logs.push(...result.logs.map((message) => ({
+      level: result.status === 'SUCCESS' ? 'info' : 'error',
+      stage: stage.id,
+      message
+    })));
+
+    if (result.status === 'FAILED' && stage.continueOnError !== true) {
+      stopped = true;
+    }
+  }
+
+  const totalDuration = Date.now() - startedAt;
+  const successCount = stages.filter((stage) => stage.status === 'SUCCESS').length;
+  const failureCount = stages.filter((stage) => stage.status === 'FAILED').length;
+  const skippedCount = stages.filter((stage) => stage.status === 'SKIPPED').length;
+  const completedStages = stages.filter((stage) => stage.duration > 0);
+  const bottleneckStage = completedStages.reduce((max, stage) => (
+    !max || stage.duration > max.duration ? stage : max
+  ), null);
+
+  return {
+    status: failureCount > 0 ? 'failed' : 'success',
+    executionId: `local-${Date.now()}`,
+    pipelineName: pipelineConfig.name,
+    stages,
+    metrics: {
+      totalDuration,
+      totalStages: stages.length,
+      stageCount: stages.length,
+      successCount,
+      failureCount,
+      skippedCount,
+      averageStageDuration: completedStages.length ? completedStages.reduce((sum, stage) => sum + stage.duration, 0) / completedStages.length : 0,
+      successRate: stages.length ? Math.round((successCount / stages.length) * 100) : 100,
+      bottleneckStage: bottleneckStage?.id,
+      resourceUtilization: {
+        avgCpu: 0,
+        avgMemory: 0,
+        peakCpu: 0,
+        peakMemory: 0
+      }
+    },
+    logs
+  };
+}
+
+function runPipelineStage(stage, options) {
+  const startedAt = Date.now();
+  const command = stage.command;
+  const output = [];
+  const errors = [];
+  const logs = [];
+
+  if (!command || typeof command !== 'string') {
+    return Promise.resolve({
+      id: stage.id,
+      name: stage.name || stage.id,
+      status: 'FAILED',
+      duration: 0,
+      command,
+      exitCode: null,
+      metrics: zeroResourceMetrics(),
+      errors: [{ message: 'Stage command must be a non-empty string' }],
+      logs
+    });
+  }
+
+  return new Promise((resolve) => {
+    let completed = false;
+    let timedOut = false;
+
+    const child = spawn(command, {
+      cwd: options.cwd,
+      env: options.env,
+      shell: true,
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    const finish = (status, exitCode, signal, errorMessage) => {
+      if (completed) {
+        return;
+      }
+      completed = true;
+      clearTimeout(timeout);
+      process.off('SIGINT', terminate);
+      process.off('SIGTERM', terminate);
+
+      if (errorMessage) {
+        errors.push({ message: errorMessage });
+      }
+
+      resolve({
+        id: stage.id,
+        name: stage.name || stage.id,
+        status,
+        duration: Date.now() - startedAt,
+        command,
+        exitCode,
+        signal,
+        metrics: {
+          ...zeroResourceMetrics(),
+          timedOut
+        },
+        errors,
+        logs,
+        output: output.join('').slice(-12000)
+      });
+    };
+
+    const terminate = () => {
+      terminateChildProcess(child);
+      finish('FAILED', null, 'SIGTERM', `Stage ${stage.id} was terminated`);
+    };
+
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      terminateChildProcess(child);
+      finish('FAILED', null, 'SIGTERM', `Stage ${stage.id} timed out after ${options.timeoutMs}ms`);
+    }, options.timeoutMs);
+
+    child.stdout.on('data', (chunk) => {
+      const text = chunk.toString();
+      if (options.stream) {
+        process.stdout.write(text);
+      }
+      output.push(text);
+      logs.push(text.trimEnd());
+    });
+
+    child.stderr.on('data', (chunk) => {
+      const text = chunk.toString();
+      if (options.stream) {
+        process.stderr.write(text);
+      }
+      output.push(text);
+      logs.push(text.trimEnd());
+    });
+
+    child.on('error', (error) => {
+      finish('FAILED', null, null, error.message);
+    });
+
+    child.on('close', (code, signal) => {
+      if (code === 0 && !timedOut) {
+        finish('SUCCESS', code, signal);
+      } else if (!completed) {
+        finish('FAILED', code, signal, `Command exited with ${signal ? `signal ${signal}` : `code ${code}`}`);
+      }
+    });
+
+    process.once('SIGINT', terminate);
+    process.once('SIGTERM', terminate);
+  });
+}
+
+function terminateChildProcess(child) {
+  if (!child || child.killed) {
+    return;
+  }
+
+  if (process.platform === 'win32' && child.pid) {
+    try {
+      execFileSync('taskkill', ['/pid', String(child.pid), '/t', '/f'], { windowsHide: true });
+      return;
+    } catch {
+      // Fall back to child.kill below.
+    }
+  }
+
+  child.kill('SIGTERM');
+}
+
+function zeroResourceMetrics() {
+  return {
+    cpuUsage: 0,
+    memoryUsage: 0
+  };
+}
+
 function callAIProvider(config, prompt) {
   switch (config.provider) {
     case 'openai':
@@ -853,67 +1502,67 @@ function getTypeIcon(type) {
   }
 }
 
-// Display EKG-enhanced analysis results (Phase 4)
-function displayEKGAnalysisResults(analysis) {
-  if (!analysis) {
-    console.log(chalk.yellow('⚠️  No analysis results available'));
+function displayAgentResults(agentResults) {
+  if (!agentResults.length) {
     return;
   }
 
-  // Display summary
-  if (analysis.summary) {
-    console.log(chalk.blue('📊 Analysis Summary:'));
-    console.log(`   📁 Files modified: ${analysis.summary.totalFiles}`);
-    console.log(`   ➕ Additions: ${analysis.summary.totalAdditions}`);
-    console.log(`   ➖ Deletions: ${analysis.summary.totalDeletions}`);
-    console.log(`   🧠 EKG enhanced: ${analysis.summary.ekgEnhanced ? 'Yes' : 'No'}`);
-    console.log();
-  }
+  console.log(chalk.blue('Agent Results:'));
+  for (const result of agentResults) {
+    const color = result.status === 'fail' ? chalk.red : result.status === 'warn' ? chalk.yellow : chalk.green;
+    console.log(color(`  ${result.agent}: ${result.status.toUpperCase()} (${result.score}/10)`));
 
-  // Display EKG context information
-  if (analysis.ekg_context) {
-    console.log(chalk.blue('🧠 EKG Context:'));
-    console.log(`   📚 Patterns analyzed: ${analysis.ekg_context.patterns_analyzed || 0}`);
-    console.log(`   👥 Similar repositories: ${analysis.ekg_context.similar_repositories_found || 0}`);
-    console.log(`   🔍 Repository known to EKG: ${analysis.ekg_context.repository_known ? 'Yes' : 'No'}`);
-    console.log();
+    for (const finding of result.findings || []) {
+      const location = finding.fileName ? `${finding.fileName}${finding.line ? `:${finding.line}` : ''}` : 'repository';
+      console.log(chalk.gray(`    - ${location} ${finding.description}`));
+    }
   }
+}
 
-  // Display issues
-  if (analysis.issues && analysis.issues.length > 0) {
-    console.log(chalk.yellow('⚠️ Issues Found:'));
-    analysis.issues.forEach(issue => {
-      const severityColor = getSeverityColor(issue.severity);
-      const typeIcon = getTypeIcon(issue.type);
-      console.log(`   ${severityColor}${typeIcon} ${issue.severity}: ${issue.description}`);
+function displayHistoryRun(run) {
+  console.log(chalk.blue(`Run: ${run.id}`));
+  console.log(`  Status: ${run.success ? chalk.green(run.status) : chalk.red(run.status)}`);
+  console.log(`  Score: ${run.score ?? 'n/a'}/10`);
+  console.log(`  Branch: ${run.branch || 'unknown'}`);
+  console.log(`  Time: ${run.timestamp}`);
+  if (run.summary) {
+    console.log(`  Summary: ${run.summary}`);
+  }
+  displayAgentResults(run.agentResults || []);
+}
+
+function displayProfileSummary(summary) {
+  console.log(chalk.blue('Codeflow Developer Profile'));
+  console.log(`  Push Health: ${summary.pushHealth}/100`);
+  console.log(`  Review Trend: ${summary.trend}`);
+  console.log(`  Runs: ${summary.totalRuns} (${summary.passRate}% pass rate)`);
+  console.log(`  Average Score: ${summary.averageScore}/10`);
+
+  if (summary.mostCommonIssues.length > 0) {
+    console.log(chalk.yellow('\nMost Common Issues:'));
+    summary.mostCommonIssues.forEach((issue) => {
+      console.log(`  - ${issue.type}: ${issue.count}`);
     });
-    console.log();
   }
 
-  // Display recommendations
-  if (analysis.recommendations && analysis.recommendations.length > 0) {
-    console.log(chalk.green('💡 Recommendations:'));
-    analysis.recommendations.forEach(rec => {
-      const severityColor = getSeverityColor(rec.severity);
-      console.log(`   ${severityColor}• ${rec.description}`);
-      if (rec.file) {
-        console.log(chalk.gray(`     📁 File: ${rec.file}`));
-      }
-    });
-    console.log();
+  if (summary.strengths.length > 0) {
+    console.log(chalk.green('\nStrengths:'));
+    summary.strengths.forEach((strength) => console.log(`  - ${strength}`));
   }
 
-  // Display file details
-  if (analysis.files && analysis.files.length > 0) {
-    console.log(chalk.blue('📂 Files Changed:'));
-    analysis.files.forEach(file => {
-      const changeType = file.isNew ? 'NEW' : 'MODIFIED';
-      const changeColor = file.isNew ? chalk.green : chalk.blue;
-      console.log(`${changeColor}   ${changeType} ${file.path} (${file.language})`);
-      console.log(chalk.gray(`      +${file.additions} -${file.deletions} changes`));
-    });
-    console.log();
+  if (summary.focusAreas.length > 0) {
+    console.log(chalk.cyan('\nRecommended Focus:'));
+    summary.focusAreas.forEach((area) => console.log(`  - ${area}`));
   }
+}
+
+function displayCoachingTips(tips) {
+  console.log(chalk.blue('Codeflow Review Tips'));
+  tips.forEach((tip, index) => {
+    const color = tip.priority === 'high' ? chalk.red : tip.priority === 'medium' ? chalk.yellow : chalk.gray;
+    console.log(color(`${index + 1}. ${tip.title}`));
+    console.log(chalk.gray(`   ${tip.detail}`));
+  });
 }
 
 // Display pipeline simulation results
@@ -1002,7 +1651,8 @@ function displaySimulationResults(result) {
     // Show last few log lines
     const recentLogs = result.logs.slice(-5);
     recentLogs.forEach(log => {
-      console.log(chalk.gray(`   ${log}`));
+      const message = typeof log === 'string' ? log : log.message || JSON.stringify(log);
+      console.log(chalk.gray(`   ${message}`));
     });
     if (result.logs.length > 5) {
       console.log(chalk.gray(`   ... and ${result.logs.length - 5} more log entries`));
