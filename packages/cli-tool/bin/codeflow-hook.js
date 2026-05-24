@@ -18,7 +18,7 @@ const program = new Command();
 program
   .name('codeflow-hook')
   .description('Local AI-powered code analysis and git hook management')
-  .version('2.3.0');
+  .version('2.3.1');
 
 // Configure AI provider settings
 program
